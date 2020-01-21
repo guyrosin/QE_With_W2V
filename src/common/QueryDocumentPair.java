@@ -20,7 +20,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopScoreDocCollector;
-import org.apache.lucene.search.similarities.DefaultSimilarity;
+import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 
@@ -108,7 +108,7 @@ public class QueryDocumentPair {
         reader = DirectoryReader.open(FSDirectory.open(indexFile.toPath()));
 
         searcher = new IndexSearcher(reader);
-        searcher.setSimilarity(new DefaultSimilarity());
+        searcher.setSimilarity(new BM25Similarity());
 
 //        File fl = new File(resPath);
 //        //if file exists, delete it
@@ -155,7 +155,7 @@ public class QueryDocumentPair {
         ScoreDoc[] hits = null;
         TopDocs topDocs = null;
 
-        TopScoreDocCollector collector = TopScoreDocCollector.create(5);
+        TopScoreDocCollector collector = TopScoreDocCollector.create(5, Integer.MAX_VALUE);
         Query luceneQuery = doidParser.getAnalyzedQuery(docid);
         //System.out.println(luceneQuery.toString("content"));
         searcher.search(luceneQuery, collector);

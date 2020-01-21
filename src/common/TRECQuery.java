@@ -39,11 +39,11 @@ public class TRECQuery {
      * @param analyzer
      * @param queryFieldText
      * @return (String) The content of the field
-     * @throws Exception 
+     * @throws Exception
      */
     public String queryFieldAnalyze(Analyzer analyzer, String queryFieldText) throws Exception {
         fieldToSearch = FIELD_BOW;
-        StringBuffer localBuff = new StringBuffer(); 
+        StringBuffer localBuff = new StringBuffer();
 //        queryFieldText = queryFieldText.replace(".", "");
         TokenStream stream = analyzer.tokenStream(fieldToSearch, new StringReader(queryFieldText));
         CharTermAttribute termAtt = stream.addAttribute(CharTermAttribute.class);
@@ -60,16 +60,16 @@ public class TRECQuery {
 
     public Query getBOWQuery(Analyzer analyzer, TRECQuery query) throws Exception {
         fieldToSearch = FIELD_BOW;
-        BooleanQuery q = new BooleanQuery();
         Term thisTerm;
-        
+
         String[] terms = queryFieldAnalyze(analyzer, query.qtitle).split("\\s+");
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
         for (String term : terms) {
             thisTerm = new Term(fieldToSearch, term);
             Query tq = new TermQuery(thisTerm);
-            q.add(tq, BooleanClause.Occur.SHOULD);
+            builder.add(tq, BooleanClause.Occur.SHOULD);
         }
-        luceneQuery = q;
+        luceneQuery = builder.build();
 
         return luceneQuery;
     }

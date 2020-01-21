@@ -32,16 +32,8 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.TopScoreDocCollector;
+import org.apache.lucene.search.*;
 import org.apache.lucene.search.similarities.BM25Similarity;
-import org.apache.lucene.search.similarities.DefaultSimilarity;
 import org.apache.lucene.search.similarities.LMDirichletSimilarity;
 import org.apache.lucene.search.similarities.LMJelinekMercerSimilarity;
 import org.apache.lucene.search.similarities.Similarity;
@@ -86,7 +78,7 @@ public class PostRetrievalQE {
     WordVecs        wordVecs;
     private int numFeedbackDocs;
 
-    public PostRetrievalQE(Properties prop) throws IOException, Exception {
+    public PostRetrievalQE(Properties prop) throws Exception {
 
         LM_LAMBDA = 0.6f;
 
@@ -161,7 +153,7 @@ public class PostRetrievalQE {
 
         switch(choice) {
             case 0:
-                searcher.setSimilarity(new DefaultSimilarity());
+                searcher.setSimilarity(new BM25Similarity());
                 break;
             case 1:
                 searcher.setSimilarity(new BM25Similarity(param1, param2));
@@ -177,7 +169,7 @@ public class PostRetrievalQE {
 
     private void setRunName_ResFileName() {
 
-        Similarity s = searcher.getSimilarity(true);
+        Similarity s = searcher.getSimilarity();
         runName = queryFile.getName()+"-"+s.toString()+"-postRetQE";
         runName = runName.replace(" ", "").replace("(", "").replace(")", "").replace("00000", "");
         runName = runName.concat("-"+QMIX+"-"+numFeedbackDocs+"-"+k);
@@ -207,7 +199,7 @@ public class PostRetrievalQE {
      * @throws Exception 
      * @return
      */
-    public List<WordVec> makeQueryVectorForms(String qTerms[]) throws Exception {
+    public List<WordVec> makeQueryVectorForms(String[] qTerms) throws Exception {
         
         WordVec singleWV = null;
 
@@ -231,7 +223,7 @@ public class PostRetrievalQE {
 
         // Qc
             for (int i = 0; i < vec_Q.size()-1; i++) {
-                singleWV = vec_Q.get(i).add(vec_Q.get(i), vec_Q.get(i+1));
+                singleWV = WordVec.add(vec_Q.get(i), vec_Q.get(i+1));
                 singleWV.norm = singleWV.getNorm();
                 singleWV.word = vec_Q.get(i).word+"+"+vec_Q.get(i+1).word;
                 q_c.add(singleWV);
@@ -332,11 +324,11 @@ public class PostRetrievalQE {
 
     /**
      * Returns the new formed, expanded query
-     * @param qTerms[] The initial query terms
+     * @param qTerms The initial query terms
      * @return BooleanQuery - The expanded query in boolean format
      * @throws Exception 
      */
-    public BooleanQuery makeNewQuery(String qTerms[], ScoreDoc[] hits) throws Exception {
+    public BooleanQuery makeNewQuery(String[] qTerms, ScoreDoc[] hits) throws Exception {
 
         List<WordVec> q_prime = makeQueryVectorForms(qTerms);
 
@@ -349,7 +341,6 @@ public class PostRetrievalQE {
         System.out.println();
         */
 
-        BooleanQuery booleanQuery = new BooleanQuery();
         Term thisTerm;
 
 
@@ -378,16 +369,17 @@ public class PostRetrievalQE {
             normFactor += newWeight;
         }
 
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
         for (Map.Entry<String, WordProbability> entrySet : hashmap_et.entrySet()) {
             thisTerm = new Term(fieldToSearch, entrySet.getKey());
             Query tq = new TermQuery(thisTerm);
-            tq.setBoost((float)entrySet.getValue().p_w_given_R/normFactor);
+            tq.createWeight(searcher, ScoreMode.COMPLETE, entrySet.getValue().p_w_given_R/normFactor);
             BooleanQuery.setMaxClauseCount(4096);
-            booleanQuery.add(tq, BooleanClause.Occur.SHOULD);
+            builder.add(tq, BooleanClause.Occur.SHOULD);
             //System.out.println(singleTerm.word+"^"+singleTerm.querySim);
         }
 
-        return booleanQuery;
+        return builder.build();
     }
 
     public void retrieveAll() throws Exception {
@@ -399,7 +391,7 @@ public class PostRetrievalQE {
 //        FileWriter baselineRes = new FileWriter(resPath+".baseline");
 
         for (TRECQuery query : queries) {
-            collector = TopScoreDocCollector.create(numHits);
+            collector = TopScoreDocCollector.create(numHits, Integer.MAX_VALUE); // TODO Guy
             Query luceneQuery = trecQueryParser.getAnalyzedQuery(query);
 
             System.out.println(query.qid+": Initial query: " + luceneQuery.toString(fieldToSearch));
@@ -411,7 +403,7 @@ public class PostRetrievalQE {
             BooleanQuery bq = makeNewQuery(luceneQuery.toString(fieldToSearch).split(" "), hits);
 
             System.out.println(bq.toString(fieldToSearch));
-            collector = TopScoreDocCollector.create(numHits);
+            collector = TopScoreDocCollector.create(numHits, Integer.MAX_VALUE);
             searcher.search(bq, collector);
             topDocs = collector.topDocs();
             hits = topDocs.scoreDocs;
@@ -435,7 +427,7 @@ public class PostRetrievalQE {
         } // ends for each query
     } // ends retrieveAll
 
-    public static void main(String[] args) throws IOException, Exception {
+    public static void main(String[] args) throws Exception {
 
         Properties prop = new Properties();
         if(1 != args.length) {

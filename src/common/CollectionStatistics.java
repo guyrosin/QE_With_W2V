@@ -89,32 +89,32 @@ public class CollectionStatistics {
      * @throws IOException 
      */
     public void buildCollectionStat() throws IOException {
+        throw new RuntimeException("UNSUPPORTED!!! I had no idea how to implement it for Lucene 8.3");
+//        docCount = indexReader.maxDoc();      // total number of documents in the index
 
-        docCount = indexReader.maxDoc();      // total number of documents in the index
-
-        Fields fields = MultiFields.getFields(indexReader);
-        Terms terms = fields.terms(field);
-        if(null == terms) {
-            System.err.println("Field: "+field);
-            System.err.println("Error buildCollectionStat(): terms Null found");
-        }
-        colSize = terms.getSumTotalTermFreq();  // total number of terms in the index in that field
-        TermsEnum iterator = terms.iterator();
-        BytesRef byteRef = null;
-
-        while((byteRef = iterator.next()) != null) {
-        //* for each word in the collection
-            String t = new String(byteRef.bytes, byteRef.offset, byteRef.length);
-            int df = iterator.docFreq();           // df of 't'
-            long cf = iterator.totalTermFreq();    // cf of 't'
-            // idf = log(#docCount / (df+1) )
-            double idf = Math.log((float)(docCount)/(float)(df+1));
-            double norm_cf = (double)cf / (double)colSize;
-            perTermStat.put(t, new PerTermStat(t, cf, df, idf, norm_cf));
-        }
-        uniqTermCount = perTermStat.size();
-
-        System.out.println("Collection statistics built");
+//        Fields fields = MultiFields.getFields(indexReader);
+//        Terms terms = fields.terms(field);
+//        if(null == terms) {
+//            System.err.println("Field: "+field);
+//            System.err.println("Error buildCollectionStat(): terms Null found");
+//        }
+//        colSize = terms.getSumTotalTermFreq();  // total number of terms in the index in that field
+//        TermsEnum iterator = terms.iterator();
+//        BytesRef byteRef = null;
+//
+//        while((byteRef = iterator.next()) != null) {
+//        //* for each word in the collection
+//            String t = new String(byteRef.bytes, byteRef.offset, byteRef.length);
+//            int df = iterator.docFreq();           // df of 't'
+//            long cf = iterator.totalTermFreq();    // cf of 't'
+//            // idf = log(#docCount / (df+1) )
+//            double idf = Math.log((float)(docCount)/(float)(df+1));
+//            double norm_cf = (double)cf / (double)colSize;
+//            perTermStat.put(t, new PerTermStat(t, cf, df, idf, norm_cf));
+//        }
+//        uniqTermCount = perTermStat.size();
+//
+//        System.out.println("Collection statistics built");
     }
 
     /**

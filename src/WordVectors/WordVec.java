@@ -18,11 +18,11 @@ public class WordVec implements Comparable<WordVec> {
     public double   querySim;   // distance from a reference query point
 
     public WordVec() {}
-    
-    public WordVec(int vecsize) { 
+
+    public WordVec(int vecsize) {
         vec = new double[vecsize];
     }
-    
+
     public WordVec(String word, double[] vec) {
         this.word = word;
         this.vec = vec;
@@ -77,7 +77,7 @@ public class WordVec implements Comparable<WordVec> {
 
     @Override
     public int compareTo(WordVec that) {
-        return this.querySim > that.querySim? -1 : this.querySim == that.querySim? 0 : 1;
+        return Double.compare(that.querySim, this.querySim);
     }
 
     byte[] getBytes() throws IOException {
@@ -97,7 +97,7 @@ public class WordVec implements Comparable<WordVec> {
         sum.vec = new double[a.vec.length];
         for (int i = 0; i < a.vec.length; i++) {
             sum.vec[i] = .5 * (a.vec[i]/a.getNorm() + b.vec[i]/b.getNorm());
-        }        
+        }
         return sum;
     }
 
@@ -106,7 +106,7 @@ public class WordVec implements Comparable<WordVec> {
         sum.vec = new double[a.vec.length];
         for (int i = 0; i < a.vec.length; i++) {
             sum.vec[i] = (a.vec[i] + b.vec[i]);
-        }        
+        }
         return sum;
     }
 
@@ -122,4 +122,13 @@ public class WordVec implements Comparable<WordVec> {
         sum.word = list.get(0).word;
         return sum;
     }
-}    
+
+    @Override
+    public String toString() {
+        return "WordVec{" +
+                "word='" + word + '\'' +
+                ", norm=" + norm +
+                ", querySim=" + querySim +
+                '}';
+    }
+}

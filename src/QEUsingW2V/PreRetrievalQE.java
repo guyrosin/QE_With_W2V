@@ -7,7 +7,7 @@ package QEUsingW2V;
  *
  * @author dwaipayan
  */
-    
+
 import WordVectors.WordVec;
 import WordVectors.WordVecs;
 import common.CollectionStatistics;
@@ -30,16 +30,8 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.TopScoreDocCollector;
+import org.apache.lucene.search.*;
 import org.apache.lucene.search.similarities.BM25Similarity;
-import org.apache.lucene.search.similarities.DefaultSimilarity;
 import org.apache.lucene.search.similarities.LMDirichletSimilarity;
 import org.apache.lucene.search.similarities.LMJelinekMercerSimilarity;
 import org.apache.lucene.search.similarities.Similarity;
@@ -150,7 +142,7 @@ public class PreRetrievalQE {
 
         switch(choice) {
             case 0:
-                searcher.setSimilarity(new DefaultSimilarity());
+                searcher.setSimilarity(new BM25Similarity());
                 retFunction = "Default";
                 break;
             case 1:
@@ -181,14 +173,14 @@ public class PreRetrievalQE {
             resPath = "/home/dwaipayan/";
         else
             resPath = prop.getProperty("resPath");
-        resPath = resPath+runName + ".res";
+        resPath = resPath+runName + ".txt";
     }
 
     /**
      * Parses the query from the file and makes a List<TRECQuery> 
      *  containing all the queries
      * @return
-     * @throws Exception 
+     * @throws Exception
      */
     private List<TRECQuery> constructQueries() throws Exception {
 
@@ -200,11 +192,11 @@ public class PreRetrievalQE {
 
     /**
      * Makes Q' = vec(Q) U Qc
-     * @throws Exception 
+     * @throws Exception
      * @return
      */
-    public List<WordVec> makeQueryVectorForms(String qTerms[]) throws Exception {
-        
+    public List<WordVec> makeQueryVectorForms(String[] qTerms) throws Exception {
+
         WordVec singleWV = null;
 
         List<WordVec> vec_Q = new ArrayList<>();
@@ -223,11 +215,11 @@ public class PreRetrievalQE {
         q_prime.addAll(vec_Q);
         // --- original query-term vectors are added
 
-        if(true == toCompose) {
+        if(toCompose) {
         // Qc
             System.out.println("Composing ");
             for (int i = 0; i < vec_Q.size()-1; i++) {
-                singleWV = vec_Q.get(i).add(vec_Q.get(i), vec_Q.get(i+1));
+                singleWV = WordVec.add(vec_Q.get(i), vec_Q.get(i+1));
                 singleWV.norm = singleWV.getNorm();
                 singleWV.word = vec_Q.get(i).word+"+"+vec_Q.get(i+1).word;
                 q_c.add(singleWV);
@@ -243,7 +235,7 @@ public class PreRetrievalQE {
      * Returns a hashmap of similar terms of q_prime, computed over the entire vocabulary
      * @param q_prime List of the vectors of the query terms as well as the pairwise composed forms
      * @return Hashmap of terms from across the collection which are similar to q_prime
-     * @throws IOException 
+     * @throws IOException
      */
     public HashMap<String, WordProbability> computeAndSortExpansionTerms (List<WordVec> q_prime) throws IOException {
 
@@ -254,11 +246,7 @@ public class PreRetrievalQE {
         }
         // sortedExpansionTerms now contains similar terms of query terms (unsorted)
 
-        Collections.sort(sortedExpansionTerms, new Comparator<WordVec>(){
-            @Override
-            public int compare(WordVec t1, WordVec t2) {
-                return t1.querySim<t2.querySim?1:t1.querySim==t2.querySim?0:-1;
-            }});
+        sortedExpansionTerms.sort((t1, t2) -> Double.compare(t2.querySim, t1.querySim));
         // sortedExpansionTerms now sorted
 
         int expansionTermCount = 0;
@@ -292,7 +280,7 @@ public class PreRetrievalQE {
      * P(w|Q) = tf(w,Q)/|Q|
      * @param qTerms all query terms
      * @param qTerm query term under consideration
-     * @return 
+     * @return
      */
     public float returnMLE_of_q_in_Q(String[] qTerms, String qTerm) {
 
@@ -307,7 +295,7 @@ public class PreRetrievalQE {
      * Returns the new formed, expanded query
      * @param qTerms[] The initial query terms
      * @return BooleanQuery - The expanded query in boolean format
-     * @throws Exception 
+     * @throws Exception
      */
     public BooleanQuery makeNewQuery(String qTerms[]) throws Exception {
 
@@ -319,18 +307,14 @@ public class PreRetrievalQE {
         // Now hashmap_et contains all the expansion terms (normalized weights). No query specific information.
 
         /*
-        for (WordVec wv : expansionTerms) 
+        for (WordVec wv : expansionTerms)
             System.out.print(wv.word+" ");
         System.out.println();
         */
 
-        BooleanQuery booleanQuery = new BooleanQuery();
-        Term thisTerm;
 
 
-        float normFactor;
-
-        normFactor = 0;
+        float normFactor = 0;
         //* Each w of hashmap_et: existing-weight to be QMIX*existing-weight 
         for (Map.Entry<String, WordProbability> entrySet : hashmap_et.entrySet()) {
             String key = entrySet.getKey();
@@ -353,16 +337,18 @@ public class PreRetrievalQE {
             normFactor += newWeight;
         }
 
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        ScoreMode scoreMode = ScoreMode.COMPLETE;
         for (Map.Entry<String, WordProbability> entrySet : hashmap_et.entrySet()) {
-            thisTerm = new Term(fieldToSearch, entrySet.getKey());
+            Term thisTerm = new Term(fieldToSearch, entrySet.getKey());
             Query tq = new TermQuery(thisTerm);
-            tq.setBoost((float)entrySet.getValue().p_w_given_R/normFactor);
+            tq.createWeight(searcher, scoreMode, entrySet.getValue().p_w_given_R /normFactor);
             BooleanQuery.setMaxClauseCount(4096);
-            booleanQuery.add(tq, BooleanClause.Occur.SHOULD);
+            builder.add(tq, BooleanClause.Occur.SHOULD);
             //System.out.println(singleTerm.word+"^"+singleTerm.querySim);
         }
 
-        return booleanQuery;
+        return builder.build();
     }
 
     public void retrieveAll() throws Exception {
@@ -370,11 +356,11 @@ public class PreRetrievalQE {
         ScoreDoc[] hits;
         TopDocs topDocs;
         TopScoreDocCollector collector;
-        List<WordVec> preRetrievalExpTerms;
 //        FileWriter baselineRes = new FileWriter(resPath+".baseline");
+        int totalHitThreshold = Integer.MAX_VALUE;
 
         for (TRECQuery query : queries) {
-            collector = TopScoreDocCollector.create(numHits);
+            collector = TopScoreDocCollector.create(numHits, totalHitThreshold);
             Query luceneQuery = trecQueryParser.getAnalyzedQuery(query);
 
             System.out.println(query.qid+": Initial query: " + luceneQuery.toString(fieldToSearch));
@@ -390,17 +376,17 @@ public class PreRetrievalQE {
 
             // +++ Writing the result file 
             resFileWriter = new FileWriter(resPath, true);
-            StringBuffer resBuffer = new StringBuffer();
+            StringBuilder resBuilder = new StringBuilder();
             for (int i = 0; i < hits_length; ++i) {
                 int docId = hits[i].doc;
                 Document d = searcher.doc(docId);
-                resBuffer.append(query.qid).append("\tQ0\t").
+                resBuilder.append(query.qid).append("\tQ0\t").
                     append(d.get(docIdFieldName)).append("\t").
                     append((i)).append("\t").
                     append(hits[i].score).append("\t").
                     append(runName).append("\n");
             }
-            resFileWriter.write(resBuffer.toString());
+            resFileWriter.write(resBuilder.toString());
             resFileWriter.close();
             // --- result file written
         } // ends for each query
