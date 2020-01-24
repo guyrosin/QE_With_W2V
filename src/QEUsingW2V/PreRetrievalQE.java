@@ -17,14 +17,8 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
+import java.util.*;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
@@ -192,17 +186,11 @@ public class PreRetrievalQE {
 
     /**
      * Makes Q' = vec(Q) U Qc
-     * @throws Exception
      * @return
      */
-    public List<WordVec> makeQueryVectorForms(String[] qTerms) throws Exception {
-
-        WordVec singleWV = null;
-
+    public List<WordVec> makeQueryVectorForms(String[] qTerms) {
+        WordVec singleWV;
         List<WordVec> vec_Q = new ArrayList<>();
-        List<WordVec> q_c = new ArrayList<>();
-        List<WordVec> q_prime = new ArrayList<>();
-
         // vec(Q)
         for (String qTerm : qTerms) {
             singleWV = wordVecs.wordvecmap.get(qTerm);
@@ -212,12 +200,13 @@ public class PreRetrievalQE {
                 vec_Q.add(singleWV);
             }
         }
-        q_prime.addAll(vec_Q);
+        List<WordVec> q_prime = new ArrayList<>(vec_Q);
         // --- original query-term vectors are added
 
         if(toCompose) {
         // Qc
             System.out.println("Composing ");
+            List<WordVec> q_c = new ArrayList<>();
             for (int i = 0; i < vec_Q.size()-1; i++) {
                 singleWV = WordVec.add(vec_Q.get(i), vec_Q.get(i+1));
                 singleWV.norm = singleWV.getNorm();
@@ -235,9 +224,8 @@ public class PreRetrievalQE {
      * Returns a hashmap of similar terms of q_prime, computed over the entire vocabulary
      * @param q_prime List of the vectors of the query terms as well as the pairwise composed forms
      * @return Hashmap of terms from across the collection which are similar to q_prime
-     * @throws IOException
      */
-    public HashMap<String, WordProbability> computeAndSortExpansionTerms (List<WordVec> q_prime) throws IOException {
+    public HashMap<String, WordProbability> computeAndSortExpansionTerms (List<WordVec> q_prime) {
 
         List<WordVec> sortedExpansionTerms = new ArrayList<>();
         for (WordVec wv : q_prime) {
@@ -265,7 +253,6 @@ public class PreRetrievalQE {
 
         // +++ normalization
         for (Map.Entry<String, WordProbability> entrySet : hashmap_et.entrySet()) {
-            String key = entrySet.getKey();
             WordProbability value = entrySet.getValue();
             value.p_w_given_R /= norm;
         }
@@ -283,41 +270,45 @@ public class PreRetrievalQE {
      * @return
      */
     public float returnMLE_of_q_in_Q(String[] qTerms, String qTerm) {
-
-        int count=0;
-        for (String queryTerm : qTerms)
-            if (qTerm.equals(queryTerm))
-                count++;
-        return ( (float)count / (float)qTerms.length );
+        int count = (int) Arrays.stream(qTerms).filter(qTerm::equals).count();
+        return ((float)count / (float)qTerms.length);
     } // ends returnMLE_of_w_in_Q()
 
     /**
+     * Returns an unexpanded query from the given terms
+     * @param qTerms
+     * @return BooleanQuery - The query in boolean format
+     */
+    public BooleanQuery makeQuery(String[] qTerms) {
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        for (String term : qTerms) {
+            Term thisTerm = new Term(fieldToSearch, term);
+            Query tq = new TermQuery(thisTerm);
+            builder.add(tq, BooleanClause.Occur.SHOULD);
+        }
+        return builder.build();
+    }
+
+    /**
      * Returns the new formed, expanded query
-     * @param qTerms[] The initial query terms
+     * @param qTerms The initial query terms
      * @return BooleanQuery - The expanded query in boolean format
      * @throws Exception
      */
-    public BooleanQuery makeNewQuery(String qTerms[]) throws Exception {
+    public BooleanQuery makeNewQuery(String[] qTerms) throws Exception {
 
         List<WordVec> q_prime = makeQueryVectorForms(qTerms);
 
-//        List<WordVec> expansionTerms = returnPreRetrievalExpansionTerms(qTerms);
-//        HashMap<String, WordProbability> hashmap_et = sortExpansionTerms(q_prime, expansionTerms);
         HashMap<String, WordProbability> hashmap_et = computeAndSortExpansionTerms(q_prime);
         // Now hashmap_et contains all the expansion terms (normalized weights). No query specific information.
 
-        /*
-        for (WordVec wv : expansionTerms)
-            System.out.print(wv.word+" ");
-        System.out.println();
-        */
-
-
+//        for (String wv : hashmap_et.keySet())
+//            System.out.print(wv+" ");
+//        System.out.println();
 
         float normFactor = 0;
         //* Each w of hashmap_et: existing-weight to be QMIX*existing-weight 
         for (Map.Entry<String, WordProbability> entrySet : hashmap_et.entrySet()) {
-            String key = entrySet.getKey();
             WordProbability value = entrySet.getValue();
             value.p_w_given_R = value.p_w_given_R * QMIX;
             normFactor += value.p_w_given_R;
@@ -329,23 +320,23 @@ public class PreRetrievalQE {
         for (String qTerm : qTerms) {
             WordProbability existingTerm = hashmap_et.get(qTerm);
             float newWeight = (1.0f-QMIX) * returnMLE_of_q_in_Q(qTerms, qTerm);
-            if (null != existingTerm) { // qTerm is already in hashmap_et
+            if (null != existingTerm) // qTerm is already in hashmap_et
                 existingTerm.p_w_given_R += newWeight;
-            }
             else  // the qTerm is not in R
                 hashmap_et.put(qTerm, new WordProbability(qTerm, newWeight));
             normFactor += newWeight;
         }
 
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        BooleanQuery.setMaxClauseCount(4096);
         ScoreMode scoreMode = ScoreMode.COMPLETE;
+        Set<String> qTermsSet = Set.of(qTerms);
         for (Map.Entry<String, WordProbability> entrySet : hashmap_et.entrySet()) {
             Term thisTerm = new Term(fieldToSearch, entrySet.getKey());
             Query tq = new TermQuery(thisTerm);
             tq.createWeight(searcher, scoreMode, entrySet.getValue().p_w_given_R /normFactor);
-            BooleanQuery.setMaxClauseCount(4096);
-            builder.add(tq, BooleanClause.Occur.SHOULD);
-            //System.out.println(singleTerm.word+"^"+singleTerm.querySim);
+            builder.add(tq, qTermsSet.contains(thisTerm.text()) ? BooleanClause.Occur.SHOULD : BooleanClause.Occur.MUST);
+            System.out.println(entrySet.getKey()+"^"+entrySet.getValue().p_w_given_R);
         }
 
         return builder.build();
@@ -356,7 +347,6 @@ public class PreRetrievalQE {
         ScoreDoc[] hits;
         TopDocs topDocs;
         TopScoreDocCollector collector;
-//        FileWriter baselineRes = new FileWriter(resPath+".baseline");
         int totalHitThreshold = Integer.MAX_VALUE;
 
         for (TRECQuery query : queries) {
@@ -372,7 +362,8 @@ public class PreRetrievalQE {
             topDocs = collector.topDocs();
             hits = topDocs.scoreDocs;
             int hits_length = hits.length;
-            System.out.println(hits_length + " results retrieved  for query: " + query.qid);
+            if (hits_length < 1000)
+                System.out.println(hits_length + " results retrieved for query: " + query.qid);
 
             // +++ Writing the result file 
             resFileWriter = new FileWriter(resPath, true);
@@ -392,7 +383,7 @@ public class PreRetrievalQE {
         } // ends for each query
     } // ends retrieveAll
 
-    public static void main(String[] args) throws IOException, Exception {
+    public static void main(String[] args) throws Exception {
 
         Properties prop = new Properties();
         if(1 != args.length) {

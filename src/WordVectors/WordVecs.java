@@ -19,6 +19,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.StringTokenizer;
+import java.util.stream.IntStream;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.xml.sax.SAXException;
 
@@ -304,21 +306,7 @@ public class WordVecs {
     }
 
     private boolean isLegalToken(String word) {
-        boolean flag = true;
-        for ( int i=0; i< word.length(); i++) {
-//            if(isDigit(word.charAt(i))) {
-//                flag = false;
-//                break;
-//            }
-            if(isLetter(word.charAt(i))) {
-                continue;
-            }
-            else {
-                flag = false;
-                break;
-            }
-        }
-        return flag;
+        return IntStream.range(0, word.length()).allMatch(i -> isLetter(word.charAt(i)));
     }
     
     /**
@@ -347,7 +335,7 @@ public class WordVecs {
                     String token = st.nextToken();
                     tokens.add(token);
                 }
-                List<WordVec> nns = new LinkedList();
+                LinkedList<WordVec> nns = new LinkedList<>();
                 int len = tokens.size();
                 //System.out.print(tokens.get(0)+" > ");
                 for (int i=1; i < len-1; i+=2) {

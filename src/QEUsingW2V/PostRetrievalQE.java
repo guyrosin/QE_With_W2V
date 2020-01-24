@@ -391,7 +391,7 @@ public class PostRetrievalQE {
 //        FileWriter baselineRes = new FileWriter(resPath+".baseline");
 
         for (TRECQuery query : queries) {
-            collector = TopScoreDocCollector.create(numHits, Integer.MAX_VALUE); // TODO Guy
+            collector = TopScoreDocCollector.create(numHits, Integer.MAX_VALUE);
             Query luceneQuery = trecQueryParser.getAnalyzedQuery(query);
 
             System.out.println(query.qid+": Initial query: " + luceneQuery.toString(fieldToSearch));

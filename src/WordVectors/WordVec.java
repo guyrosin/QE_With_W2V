@@ -1,10 +1,7 @@
 
 package WordVectors;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.ObjectOutput;
-import java.io.ObjectOutputStream;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -55,11 +52,8 @@ public class WordVec implements Comparable<WordVec> {
     public double getNorm() {
         if (norm == 0) {
             // calculate and store
-            double sum = 0;
-            for (int i = 0; i < vec.length; i++) {
-                sum += vec[i]*vec[i];
-            }
-            norm = (double)Math.sqrt(sum);
+            double sum = Arrays.stream(vec).map(v -> v * v).sum();
+            norm = Math.sqrt(sum);
         }
         return norm;
     }
@@ -78,18 +72,6 @@ public class WordVec implements Comparable<WordVec> {
     @Override
     public int compareTo(WordVec that) {
         return Double.compare(that.querySim, this.querySim);
-    }
-
-    byte[] getBytes() throws IOException {
-        byte[] byteArray;
-        try (ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
-            ObjectOutput out;
-            out = new ObjectOutputStream(bos);
-            out.writeObject(this);
-            byteArray = bos.toByteArray();
-            out.close();
-        }
-        return byteArray;
     }
 
     public static WordVec add(WordVec a, WordVec b) {

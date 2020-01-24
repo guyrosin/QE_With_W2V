@@ -43,7 +43,7 @@ public class TRECQuery {
      */
     public String queryFieldAnalyze(Analyzer analyzer, String queryFieldText) throws Exception {
         fieldToSearch = FIELD_BOW;
-        StringBuffer localBuff = new StringBuffer();
+        StringBuilder localBuff = new StringBuilder();
 //        queryFieldText = queryFieldText.replace(".", "");
         TokenStream stream = analyzer.tokenStream(fieldToSearch, new StringReader(queryFieldText));
         CharTermAttribute termAtt = stream.addAttribute(CharTermAttribute.class);
