@@ -49,7 +49,7 @@ public class PreComputeNNs {
             String wordvecFile = prop.getProperty("vectorPath");
 
             k = Integer.parseInt(prop.getProperty("k", "15"));
-            wordvecmap = new HashMap();
+            wordvecmap = new HashMap<>();
             System.out.println("Loading word vectors");
             try (FileReader fr = new FileReader(wordvecFile);
                 BufferedReader br = new BufferedReader(fr)) {
@@ -73,13 +73,13 @@ public class PreComputeNNs {
 
     public PreComputeNNs(Properties prop) throws Exception { 
 
-        this.prop = prop;
+        PreComputeNNs.prop = prop;
 
         if(prop.containsKey("vectorPath")) {
             String wordvecFile = prop.getProperty("vectorPath");
 
             k = Integer.parseInt(prop.getProperty("k", "15"));
-            wordvecmap = new HashMap();
+            wordvecmap = new HashMap<>();
             try (FileReader fr = new FileReader(wordvecFile);
                 BufferedReader br = new BufferedReader(fr)) {
                 String line;
@@ -101,7 +101,7 @@ public class PreComputeNNs {
         for (Map.Entry<String, List<WordVec>> entry : nearestWordVecsMap.entrySet()) {
             List<WordVec> nns = entry.getValue();
             String word = entry.getKey();
-            StringBuffer buff = new StringBuffer(word);
+            StringBuilder buff = new StringBuilder(word);
             buff.append(" ");
             for (WordVec nn : nns) {
                 buff.append(nn.word).append(":").append(nn.querySim);

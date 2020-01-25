@@ -374,7 +374,6 @@ public class PostRetrievalQE {
             thisTerm = new Term(fieldToSearch, entrySet.getKey());
             Query tq = new TermQuery(thisTerm);
             tq.createWeight(searcher, ScoreMode.COMPLETE, entrySet.getValue().p_w_given_R/normFactor);
-            BooleanQuery.setMaxClauseCount(4096);
             builder.add(tq, BooleanClause.Occur.SHOULD);
             //System.out.println(singleTerm.word+"^"+singleTerm.querySim);
         }

@@ -8,13 +8,11 @@ import java.util.List;
  *
  * @author dwaipayan
  */
-public class WordVec implements Comparable<WordVec> {
+public class WordVec implements Comparable<WordVec>, Cloneable {
     public String  word;       // the word
     public double[] vec;        // the vector for that word
-    public double   norm;       // the normalized value
+    public double   norm = 1.0;       // the normalized value
     public double   querySim;   // distance from a reference query point
-
-    public WordVec() {}
 
     public WordVec(int vecsize) {
         vec = new double[vecsize];
@@ -23,12 +21,14 @@ public class WordVec implements Comparable<WordVec> {
     public WordVec(String word, double[] vec) {
         this.word = word;
         this.vec = vec;
+        this.norm = getNorm();
     }
 
     public WordVec(String word, double[] vec, double querySim) {
         this.word = word;
         this.vec = vec;
         this.querySim = querySim;
+        this.norm = getNorm();
     }
 
     public WordVec(String word, double querySim) {
@@ -50,7 +50,7 @@ public class WordVec implements Comparable<WordVec> {
     }
 
     public double getNorm() {
-        if (norm == 0) {
+        if (norm == 0 || norm == 1.0) {
             // calculate and store
             double sum = Arrays.stream(vec).map(v -> v * v).sum();
             norm = Math.sqrt(sum);
@@ -112,5 +112,10 @@ public class WordVec implements Comparable<WordVec> {
                 ", norm=" + norm +
                 ", querySim=" + querySim +
                 '}';
+    }
+
+    @Override
+    protected Object clone() throws CloneNotSupportedException {
+        return super.clone();
     }
 }

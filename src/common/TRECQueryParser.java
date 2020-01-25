@@ -7,6 +7,8 @@ package common;
  */
 import static common.CommonVariables.FIELD_BOW;
 
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Node;
@@ -113,17 +115,37 @@ public class TRECQueryParser {
 
     }
 
-    public Query getAnalyzedQuery(TRECQuery trecQuery) throws Exception {
+    /**
+     * Returns an unexpanded query from the given terms
+     * @param qTerms
+     * @return BooleanQuery - The query in boolean format
+     */
+    public BooleanQuery makeQuery(String[] qTerms) {
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        for (String term : qTerms) {
+            Term thisTerm = new Term(fieldToSearch, term);
+            Query tq = new TermQuery(thisTerm);
+            builder.add(tq, BooleanClause.Occur.SHOULD);
+        }
+        return builder.build();
+    }
+
+    public Query getAnalyzedQuery(TRECQuery trecQuery, boolean customParse) throws Exception {
 
         trecQuery.qtitle = trecQuery.qtitle.replaceAll("-", " ");
-        Query luceneQuery = queryParser.parse(trecQuery.qtitle.replaceAll("/", " ")
-            .replaceAll("\\?", " ").replaceAll("\"", " ").replaceAll("\\&", " "), fieldToSearch);
+        String queryStr = trecQuery.qtitle.replaceAll("/", " ")
+                .replaceAll("\\?", " ").replaceAll("\"", " ").replaceAll("\\&", " ");
+        Query luceneQuery = customParse ? makeQuery(queryStr.toLowerCase().split(" ")) : queryParser.parse(queryStr, fieldToSearch);
         trecQuery.luceneQuery = luceneQuery;
 
         return luceneQuery;
     }
 
-    public Query getAnalyzedQuery(String queryString) throws Exception {
+    public Query getAnalyzedQuery(TRECQuery trecQuery) throws Exception {
+        return getAnalyzedQuery(trecQuery, false);
+    }
+
+    public Query getAnalyzedQuery(String queryString) {
 
 //        queryString = queryString.replaceAll("-", " ");
 //        Query luceneQuery = queryParser.parse(queryString.replaceAll("/", " ")

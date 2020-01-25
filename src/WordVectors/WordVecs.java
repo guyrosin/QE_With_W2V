@@ -22,7 +22,6 @@ import java.util.StringTokenizer;
 import java.util.stream.IntStream;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.xml.sax.SAXException;
 
 /**
  *
@@ -50,7 +49,7 @@ public class WordVecs {
             String wordvecFile = prop.getProperty("vectorPath");
 
             k = Integer.parseInt(prop.getProperty("k", "15"));
-            wordvecmap = new HashMap();
+            wordvecmap = new HashMap<>();
             System.out.println("Loading word vectors");
             try (FileReader fr = new FileReader(wordvecFile);
                 BufferedReader br = new BufferedReader(fr)) {
@@ -74,13 +73,13 @@ public class WordVecs {
 
     public WordVecs(Properties prop) throws Exception { 
 
-        this.prop = prop;
+        WordVecs.prop = prop;
 
         if(prop.containsKey("vectorPath")) {
             String wordvecFile = prop.getProperty("vectorPath");
 
             k = Integer.parseInt(prop.getProperty("k", "15"));
-            wordvecmap = new HashMap();
+            wordvecmap = new HashMap<>();
             System.out.println("Started loading all vectors into hashmap...");
             try (FileReader fr = new FileReader(wordvecFile);
                 BufferedReader br = new BufferedReader(fr)) {
@@ -108,7 +107,7 @@ public class WordVecs {
         for (Map.Entry<String, List<WordVec>> entry : nearestWordVecsMap.entrySet()) {
             List<WordVec> nns = entry.getValue();
             String word = entry.getKey();
-            StringBuffer buff = new StringBuffer(word);
+            StringBuilder buff = new StringBuilder(word);
             buff.append(" ");
             for (WordVec nn : nns) {
                 buff.append(nn.word).append(":").append(nn.querySim);
@@ -165,7 +164,7 @@ public class WordVecs {
      * compute the similar words for each of query words and store them in a file.
      * NOTE: This function is only for fastening the process
      */
-    public void computeAndStoreQueryNNs() throws FileNotFoundException, SAXException, Exception {
+    public void computeAndStoreQueryNNs() throws Exception {
 
         EnglishAnalyzerWithSmartStopword engAnalyzer = new EnglishAnalyzerWithSmartStopword("/home/dwaipayan/smart-stopwords");
         Analyzer analyzer = engAnalyzer.setAndGetEnglishAnalyzerWithSmartStopword();
@@ -227,27 +226,11 @@ public class WordVecs {
      * @return 
      */
     public List<WordVec> computeNNs(String queryWord) {
-        ArrayList<WordVec> distList = new ArrayList<>(wordvecmap.size());
-        
         WordVec queryVec = wordvecmap.get(queryWord);   // vector of the corresponding word is find out
         if (queryVec == null)
         // if the word has no vector embedded with it.
             return null;
-        
-        for (Map.Entry<String, WordVec> entry : wordvecmap.entrySet()) {
-        // calculate similarity with all the words of the collection
-            WordVec wv = entry.getValue();
-            if (wv.word.equals(queryWord))
-                continue;
-            wv.querySim = queryVec.cosineSim(wv);
-            distList.add(wv);
-        }
-
-        // sort the list of words according to similarity with queryWord (descending)
-        Collections.sort(distList);
-
-        // return a list of min(k, distList.size()) items which are similar to queryWord
-        return distList.subList(0, Math.min(k, distList.size()));
+        return computeNNs(queryVec);
     }
 
     /**
@@ -269,7 +252,33 @@ public class WordVecs {
             distList.add(wv);
         }
         Collections.sort(distList);
-        return distList.subList(0, Math.min(k, distList.size()));        
+        return distList.subList(0, Math.min(k, distList.size()));
+    }
+
+    public List<WordVec> computeNNs(double[] vec, ArrayList<String> terms) {
+        return computeNNs(vec, terms, k);
+    }
+
+    public List<WordVec> computeNNs(double[] vec, ArrayList<String> terms, int k) {
+        ArrayList<WordVec> distList = new ArrayList<>(wordvecmap.size());
+
+        if (vec == null)
+            return null;
+        WordVec wordVec = new WordVec("", vec);
+
+        for (Map.Entry<String, WordVec> entry : wordvecmap.entrySet()) {
+            WordVec wv = entry.getValue();
+//            if (terms.contains(wv.word)) // ignoring computing similarity with itself
+//                continue;
+            wv.querySim = wordVec.cosineSim(wv);
+            distList.add(wv);
+        }
+        Collections.sort(distList);
+        return distList.subList(0, Math.min(k+terms.size(), distList.size()));
+    }
+
+    public List<WordVec> computeNNs(double[] vec) {
+        return computeNNs(vec, new ArrayList<>());
     }
 
     /**
