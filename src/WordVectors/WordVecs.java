@@ -26,9 +26,9 @@ import org.apache.lucene.analysis.Analyzer;
 /**
  *
  * @author dwaipayan
- * 
+ *
  * Calculates the similar terms of each of the word of the vocabulary dump
- * 
+ *
  */
 public class WordVecs {
 
@@ -38,13 +38,13 @@ public class WordVecs {
     public HashMap<String, List<WordVec>> nearestWordVecsMap; // Store the pre-computed NNs after read from file
     static WordVecs singleTon;
 
-    
+
     public WordVecs(String propPath) throws Exception {
 
         System.out.println(propPath);
         prop = new Properties();
         prop.load(new FileReader(propPath));
-        
+
         if(prop.getProperty("vectorPath")!=null) {
             String wordvecFile = prop.getProperty("vectorPath");
 
@@ -71,7 +71,7 @@ public class WordVecs {
     }
 
 
-    public WordVecs(Properties prop) throws Exception { 
+    public WordVecs(Properties prop) throws Exception {
 
         WordVecs.prop = prop;
 
@@ -128,7 +128,7 @@ public class WordVecs {
     }
 
     /**
-     * compute the similar words for each of the words and store them in a file 
+     * compute the similar words for each of the words and store them in a file
      */
     public void computeAndStoreNNs() throws FileNotFoundException {
         String nnDumpPath = prop.getProperty("nnDumpPath");
@@ -223,7 +223,7 @@ public class WordVecs {
     /**
      * Compute the similar words of 'queryWord'
      * @param queryWord
-     * @return 
+     * @return
      */
     public List<WordVec> computeNNs(String queryWord) {
         WordVec queryVec = wordvecmap.get(queryWord);   // vector of the corresponding word is find out
@@ -236,14 +236,14 @@ public class WordVecs {
     /**
      * Compute list of similar terms of the WordVec w and return
      * @param w
-     * @return 
+     * @return
      */
     public List<WordVec> computeNNs(WordVec w) {
         ArrayList<WordVec> distList = new ArrayList<>(wordvecmap.size());
-        
+
         if (w == null)
             return null;
-        
+
         for (Map.Entry<String, WordVec> entry : wordvecmap.entrySet()) {
             WordVec wv = entry.getValue();
             if (wv.word.equals(w.word)) // ignoring computing similarity with itself
@@ -256,25 +256,38 @@ public class WordVecs {
     }
 
     public List<WordVec> computeNNs(double[] vec, ArrayList<String> terms) {
-        return computeNNs(vec, terms, k);
+        return computeNNs(vec, terms, k, false);
     }
 
-    public List<WordVec> computeNNs(double[] vec, ArrayList<String> terms, int k) {
-        ArrayList<WordVec> distList = new ArrayList<>(wordvecmap.size());
+    public List<WordVec> computeNNs(double[] vec, ArrayList<String> terms, boolean power_e) {
+        return computeNNs(vec, terms, k, power_e, null);
+    }
+
+    public List<WordVec> computeNNs(double[] vec, ArrayList<String> terms, boolean power_e, HashMap<String, WordVec> feedbackTerms) {
+        return computeNNs(vec, terms, k, power_e, feedbackTerms);
+    }
+
+    public List<WordVec> computeNNs(double[] vec, ArrayList<String> terms, int k, boolean power_e) {
+        return computeNNs(vec, terms, k, power_e, null);
+    }
+
+    public List<WordVec> computeNNs(double[] vec, ArrayList<String> terms, int k, boolean power_e, HashMap<String, WordVec> feedbackTerms) {
+        HashMap<String, WordVec> allTerms = feedbackTerms != null ? feedbackTerms : wordvecmap;
+        ArrayList<WordVec> distList = new ArrayList<>(allTerms.size());
 
         if (vec == null)
             return null;
         WordVec wordVec = new WordVec("", vec);
 
-        for (Map.Entry<String, WordVec> entry : wordvecmap.entrySet()) {
+        for (Map.Entry<String, WordVec> entry : allTerms.entrySet()) {
             WordVec wv = entry.getValue();
 //            if (terms.contains(wv.word)) // ignoring computing similarity with itself
 //                continue;
-            wv.querySim = wordVec.cosineSim(wv);
+            wv.querySim = power_e ? Math.exp(wordVec.cosineSim(wv)) : wordVec.cosineSim(wv);
             distList.add(wv);
         }
         Collections.sort(distList);
-        return distList.subList(0, Math.min(k+terms.size(), distList.size()));
+        return distList.subList(0, Math.min(k + terms.size(), distList.size()));
     }
 
     public List<WordVec> computeNNs(double[] vec) {
@@ -284,14 +297,14 @@ public class WordVecs {
     /**
      * Compute list of similar terms of the WordVec w from feedbackTerms and return
      * @param w
-     * @return 
+     * @return
      */
     public List<WordVec> computeNNs(WordVec w, HashMap<String, WordVec> feedbackTerms) {
         ArrayList<WordVec> distList = new ArrayList<>(feedbackTerms.size());
-        
+
         if (w == null)
             return null;
-        
+
         for (Map.Entry<String, WordVec> entry : feedbackTerms.entrySet()) {
             WordVec wv = entry.getValue();
             if (wv.word.equals(w.word)) // ignoring computing similarity with itself
@@ -300,7 +313,7 @@ public class WordVecs {
             distList.add(wv);
         }
         Collections.sort(distList);
-        return distList.subList(0, Math.min(k, distList.size()));        
+        return distList.subList(0, Math.min(k, distList.size()));
     }
 
     public double getSim(String u, String v) {
@@ -317,11 +330,11 @@ public class WordVecs {
     private boolean isLegalToken(String word) {
         return IntStream.range(0, word.length()).allMatch(i -> isLetter(word.charAt(i)));
     }
-    
+
     /**
-     * load the precomputed NNs into hash table 
+     * load the precomputed NNs into hash table
      * @throws FileNotFoundException
-     * @throws IOException 
+     * @throws IOException
      */
     public void loadPrecomputedNNs() throws FileNotFoundException, IOException {
         nearestWordVecsMap = new HashMap<>();
@@ -332,11 +345,11 @@ public class WordVecs {
         }
         System.out.println("Reading from the NN dump at: "+ nnDumpPath);
         File nnDumpFile = new File(nnDumpPath);
-        
+
         try (FileReader fr = new FileReader(nnDumpFile);
             BufferedReader br = new BufferedReader(fr)) {
             String line;
-            
+
             while ((line = br.readLine()) != null) {
                 StringTokenizer st = new StringTokenizer(line, " \t:");
                 List<String> tokens = new ArrayList<>();

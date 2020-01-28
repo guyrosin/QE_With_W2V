@@ -10,9 +10,8 @@ package QEUsingW2V;
 
 import WordVectors.WordVec;
 import WordVectors.WordVecs;
-import common.CollectionStatistics;
-import common.TRECQuery;
-import common.TRECQueryParser;
+import common.*;
+
 import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
@@ -20,17 +19,17 @@ import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import common.CollectionStatistics;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Document;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.Term;
+import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.LMDirichletSimilarity;
 import org.apache.lucene.search.similarities.LMJelinekMercerSimilarity;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.util.BytesRef;
 
 /**
  *
@@ -69,6 +68,7 @@ public class PreRetrievalQE {
     WordVecs        wordVecs;
     boolean         toCompose;
     private boolean customParse;
+    private boolean relevanceFeedback;
 
     public PreRetrievalQE(Properties prop) throws IOException, Exception {
 
@@ -97,6 +97,8 @@ public class PreRetrievalQE {
         System.out.println("Field: "+fieldToSearch+ " of index will be searched.");
         /* index path set */
         docIdFieldName = prop.getProperty("docIdFieldName","docid");
+
+        relevanceFeedback = Boolean.parseBoolean(prop.getProperty("relevanceFeedback"));
 
         simFuncChoice = Integer.parseInt(prop.getProperty("similarityFunction"));
         param1 = Float.parseFloat(prop.getProperty("param1"));
@@ -209,8 +211,10 @@ public class PreRetrievalQE {
                 singleWV.word = qTerm;
                 vec_Q.add(singleWV);
             }
-            else
+            else {
                 System.out.println(qTerm + " doesn't exist in the model");
+                return null;
+            }
         }
         List<WordVec> q_prime = new ArrayList<>(vec_Q);
         // --- original query-term vectors are added
@@ -324,15 +328,98 @@ public class PreRetrievalQE {
     }
 
     /**
+     * Returns a hashmap of similar terms of q_prime, computed over the entire vocabulary
+     * @param q_prime List of the vectors of the query terms as well as the pairwise composed forms
+     * @param hits
+     * @return Hashmap of terms from across the collection which are similar to q_prime
+     */
+    public HashMap<String, WordProbability> computeAndSortExpansionTerms_Saar(List<WordVec> q_prime, ScoreDoc[] hits) throws IOException {
+        if (q_prime.size() == 0) {
+            return new HashMap<>();
+        }
+        // Compute query sum vector
+        int vec_size = q_prime.get(0).vec.length;
+        double[] query_cent = new double[vec_size];
+        for (WordVec q : q_prime) {
+            for (int i = 0; i < vec_size; i++) {
+                query_cent[i] += q.vec[i];
+            }
+        }
+        ArrayList<String> qWords = q_prime.stream().map(wv -> wv.word).collect(Collectors.toCollection(ArrayList::new));
+
+        HashMap<String, WordVec> feedbackTerms = new HashMap<>();
+        List<WordVec> sortedExpansionTerms;
+        if (relevanceFeedback) {
+            int numFeedbackDocs = 50;
+            for (int i = 0; i < Math.min(numFeedbackDocs, hits.length); i++) {
+                // for each of the numFeedbackDocs initially retrieved documents:
+                int luceneDocId = hits[i].doc;
+                Document d = searcher.doc(luceneDocId);
+                Terms lol = reader.getTermVector(luceneDocId, fieldToSearch);
+                ArrayList<String> terms = new ArrayList<>();
+                TermsEnum iterator = lol.iterator();
+                BytesRef byteRef;
+
+                //* for each word in the document
+                while((byteRef = iterator.next()) != null) {
+                    String term = new String(byteRef.bytes, byteRef.offset, byteRef.length);
+                    terms.add(term);
+                }
+//                queryParser.parse(queryStr, fieldToSearch)
+                for (String term : terms) {
+                    // for each of the terms of the feedback document
+                    WordVec termVec = wordVecs.wordvecmap.get(term);
+                    if (termVec != null)
+                        feedbackTerms.put(term, termVec);
+                }
+            }
+            sortedExpansionTerms = wordVecs.computeNNs(query_cent, qWords, true, feedbackTerms);
+        }
+        else {
+            sortedExpansionTerms = wordVecs.computeNNs(query_cent, qWords, true);
+        }
+
+        // sortedExpansionTerms now contains similar terms of query terms (sorted)
+
+//        int expansionTermCount = 0;
+        double norm = 0;
+        HashMap<String, WordProbability> hashmap_et = new LinkedHashMap<>();  // to contain M terms with top P(w|R) among each w in R
+        for (WordVec singleTerm : sortedExpansionTerms) {
+            if (null == hashmap_et.get(singleTerm.word)) {
+                float prob = (float) Math.exp(singleTerm.querySim);
+                hashmap_et.put(singleTerm.word, new WordProbability(singleTerm.word, prob));
+//                expansionTermCount++;
+                norm += prob;
+//                if(expansionTermCount>=k)
+//                    break;
+            }
+            //* else: The t is already entered in the hash-map
+        }
+
+        // +++ normalization
+        for (Map.Entry<String, WordProbability> entrySet : hashmap_et.entrySet()) {
+            WordProbability value = entrySet.getValue();
+            value.p_w_given_R /= norm;
+        }
+        // --- normalization
+
+        return hashmap_et;
+    }
+
+    /**
      * Returns the new formed, expanded query
      * @param qTerms The initial query terms
+     * @param hits
      * @return BooleanQuery - The expanded query in boolean format
      * @throws Exception
      */
-    public BooleanQuery makeNewQuery_Saar(String[] qTerms) throws Exception {
+    public BooleanQuery makeNewQuery_Saar(String[] qTerms, ScoreDoc[] hits) throws Exception {
 
         List<WordVec> qVecs = makeQueryVectorForms(qTerms, false);
-        HashMap<String, WordProbability> hashmap_et = computeAndSortExpansionTerms_QAvg(qVecs);
+        if (qVecs == null) {
+            return null;
+        }
+        HashMap<String, WordProbability> hashmap_et = computeAndSortExpansionTerms_Saar(qVecs, hits);
 
         // Now hashmap_et contains all the expansion terms (normalized weights). No query specific information.
 
@@ -370,7 +457,7 @@ public class PreRetrievalQE {
             tq.createWeight(searcher, scoreMode, entrySet.getValue().p_w_given_R /normFactor);
 //            builder.add(tq, qTermsSet.contains(thisTerm.text()) ? BooleanClause.Occur.MUST : BooleanClause.Occur.SHOULD);
             builder.add(tq, BooleanClause.Occur.SHOULD);
-            System.out.println(entrySet.getKey()+"^"+entrySet.getValue().p_w_given_R);
+//            System.out.println(entrySet.getKey()+"^"+entrySet.getValue().p_w_given_R);
         }
 
         return builder.build();
@@ -414,9 +501,15 @@ public class PreRetrievalQE {
 
         // Roy 2016's expansion
         List<WordVec> q_prime = makeQueryVectorForms(qTerms);
+        if (q_prime == null) {
+            return null;
+        }
         HashMap<String, WordProbability> hashmap_et = computeAndSortExpansionTerms_Roy(q_prime);
 
 //        List<WordVec> qVecs = makeQueryVectorForms(qTerms, false);
+//        if (qVecs == null) {
+//            return null;
+//        }
 //        HashMap<String, WordProbability> hashmap_et = computeAndSortExpansionTerms_QAvg(qVecs);
 
         // Now hashmap_et contains all the expansion terms (normalized weights). No query specific information.
@@ -452,10 +545,10 @@ public class PreRetrievalQE {
         for (Map.Entry<String, WordProbability> entrySet : hashmap_et.entrySet()) {
             Term thisTerm = new Term(fieldToSearch, entrySet.getKey());
             Query tq = new TermQuery(thisTerm);
-            tq.createWeight(searcher, scoreMode, entrySet.getValue().p_w_given_R);// / normFactor);
+            tq.createWeight(searcher, scoreMode, entrySet.getValue().p_w_given_R / normFactor);
 //            builder.add(tq, qTermsSet.contains(thisTerm.text()) ? BooleanClause.Occur.MUST : BooleanClause.Occur.SHOULD);
             builder.add(tq, BooleanClause.Occur.SHOULD);
-            System.out.println(entrySet.getKey()+"^"+entrySet.getValue().p_w_given_R);
+            System.out.println(entrySet.getKey()+"^"+entrySet.getValue().p_w_given_R / normFactor);
         }
 
         return builder.build();
@@ -469,14 +562,24 @@ public class PreRetrievalQE {
         int totalHitThreshold = Integer.MAX_VALUE;
 
         for (TRECQuery query : queries) {
-            collector = TopScoreDocCollector.create(numHits, totalHitThreshold);
             Query luceneQuery = trecQueryParser.getAnalyzedQuery(query, customParse);
+
+            hits = null;
+            if (relevanceFeedback) {
+                collector = TopScoreDocCollector.create(numHits, totalHitThreshold);
+                searcher.search(luceneQuery, collector);
+                topDocs = collector.topDocs();
+                hits = topDocs.scoreDocs;
+            }
 
             System.out.println(query.qid + ": Initial query: " + query.qtitle + " --> " + luceneQuery.toString(fieldToSearch));
 
-            BooleanQuery bq = makeNewQuery(luceneQuery.toString(fieldToSearch).split(" "));
-
+            BooleanQuery bq = makeNewQuery_Saar(luceneQuery.toString(fieldToSearch).split(" "), hits);
+            if (bq == null) {
+                continue;
+            }
             System.out.println(bq.toString(fieldToSearch));
+            collector = TopScoreDocCollector.create(numHits, totalHitThreshold);
             searcher.search(bq, collector);
             topDocs = collector.topDocs();
             hits = topDocs.scoreDocs;

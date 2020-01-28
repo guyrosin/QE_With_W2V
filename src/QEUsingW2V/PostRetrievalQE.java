@@ -273,11 +273,7 @@ public class PostRetrievalQE {
         }
         // sortedExpansionTerms now contains similar terms of query terms (unsorted)
 
-        Collections.sort(sortedExpansionTerms, new Comparator<WordVec>(){
-            @Override
-            public int compare(WordVec t1, WordVec t2) {
-                return t1.querySim<t2.querySim?1:t1.querySim==t2.querySim?0:-1;
-            }});
+        sortedExpansionTerms.sort((t1, t2) -> Double.compare(t2.querySim, t1.querySim));
         // sortedExpansionTerms now sorted
 
         int expansionTermCount = 0;
