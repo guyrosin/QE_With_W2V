@@ -78,7 +78,6 @@ public class EnglishAnalyzerWithSmartStopword {
         }
 
         analyzer = new EnglishAnalyzer(StopFilter.makeStopSet(stopwords));
-        //analyzer = new StandardAnalyzer(StopFilter.makeStopSet(stopwords));
     }
 
     /** 
