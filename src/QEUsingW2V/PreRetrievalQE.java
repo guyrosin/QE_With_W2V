@@ -69,6 +69,7 @@ public class PreRetrievalQE {
     boolean         toCompose;
     private boolean customParse;
     private boolean relevanceFeedback;
+    private boolean reRank;
 
     public PreRetrievalQE(Properties prop) throws IOException, Exception {
 
@@ -99,6 +100,7 @@ public class PreRetrievalQE {
         docIdFieldName = prop.getProperty("docIdFieldName","docid");
 
         relevanceFeedback = Boolean.parseBoolean(prop.getProperty("relevanceFeedback"));
+        reRank = Boolean.parseBoolean(prop.getProperty("reRank"));
 
         simFuncChoice = Integer.parseInt(prop.getProperty("similarityFunction"));
         param1 = Float.parseFloat(prop.getProperty("param1"));
@@ -350,7 +352,7 @@ public class PreRetrievalQE {
         HashMap<String, WordVec> feedbackTerms = new HashMap<>();
         List<WordVec> sortedExpansionTerms;
         if (relevanceFeedback) {
-            int numFeedbackDocs = 50;
+            int numFeedbackDocs = 10;
             for (int i = 0; i < Math.min(numFeedbackDocs, hits.length); i++) {
                 // for each of the numFeedbackDocs initially retrieved documents:
                 int luceneDocId = hits[i].doc;
@@ -494,10 +496,11 @@ public class PreRetrievalQE {
     /**
      * Returns the new formed, expanded query
      * @param qTerms The initial query terms
+     * @param hits
      * @return BooleanQuery - The expanded query in boolean format
      * @throws Exception
      */
-    public BooleanQuery makeNewQuery(String[] qTerms) throws Exception {
+    public BooleanQuery makeNewQuery(String[] qTerms, ScoreDoc[] hits) throws Exception {
 
         // Roy 2016's expansion
         List<WordVec> q_prime = makeQueryVectorForms(qTerms);
@@ -586,6 +589,14 @@ public class PreRetrievalQE {
             int hits_length = hits.length;
             if (hits_length < 1000)
                 System.out.println(hits_length + " results retrieved for query: " + query.qid);
+
+            if (reRank) {
+                for (ScoreDoc scoreDoc : hits) {
+                    int docId = scoreDoc.doc;
+                    float score = scoreDoc.score;
+                    // TODO: calculate our score for this document, and interpolate with the current score
+                }
+            }
 
             // +++ Writing the result file 
             resFileWriter = new FileWriter(resPath, true);
