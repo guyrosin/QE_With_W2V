@@ -4,7 +4,6 @@
 package QEUsingW2V;
 
 /**
- *
  * @author dwaipayan
  */
 
@@ -386,22 +385,22 @@ public class PreRetrievalQE {
         ScoreDoc[] hits;
         TopDocs topDocs;
         TopScoreDocCollector collector;
-        //        FileWriter baselineRes = new FileWriter(resPath+".baseline");
 
         for (TRECQuery query : queries) {
             collector = TopScoreDocCollector.create(numHits);
             Query luceneQuery = trecQueryParser.getAnalyzedQuery(query);
 
-            System.out.println(query.qid + ": Initial query: " + luceneQuery.toString(fieldToSearch));
+//            System.out.println(query.qid + ": Initial query: " + luceneQuery.toString(fieldToSearch));
 
             BooleanQuery bq = makeQuery(luceneQuery.toString(fieldToSearch).split(" "));
 
-            System.out.println(bq.toString(fieldToSearch));
+            System.out.println(query.qid + ": " + luceneQuery.toString(fieldToSearch) + " --> " + bq.toString(fieldToSearch));
             searcher.search(bq, collector);
             topDocs = collector.topDocs();
             hits = topDocs.scoreDocs;
             int hits_length = hits.length;
-            System.out.println(hits_length + " results retrieved for query: " + query.qid);
+            if (hits_length < 1000)
+                System.out.println(hits_length + " results retrieved for query: " + query.qid);
 
             // +++ Writing the result file 
             resFileWriter = new FileWriter(resPath, true);

@@ -38,6 +38,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.StringJoiner;
 import java.util.regex.Matcher;
@@ -50,6 +51,8 @@ import java.util.regex.Pattern;
  * Run it with no command-line arguments for usage information.
  */
 public class IndexFiles {
+
+    private int count_indexed = 0;
 
     private IndexFiles() {
     }
@@ -113,7 +116,8 @@ public class IndexFiles {
             // iwc.setRAMBufferSizeMB(256.0);
 
             IndexWriter writer = new IndexWriter(dir, iwc);
-            new IndexFiles().indexDocs(writer, docDir);
+            IndexFiles indexer = new IndexFiles();
+            indexer.indexDocs(writer, docDir);
 
             // NOTE: if you want to maximize search performance,
             // you can optionally call forceMerge here.  This can be
@@ -127,6 +131,7 @@ public class IndexFiles {
 
             Date end = new Date();
             System.out.println(end.getTime() - start.getTime() + " total milliseconds");
+            System.out.println(indexer.count_indexed + " total documents");
 
         } catch (IOException e) {
             System.out.println(" caught a " + e.getClass() +
@@ -153,7 +158,7 @@ public class IndexFiles {
         if (Files.isDirectory(path)) {
             Files.walkFileTree(path, new SimpleFileVisitor<Path>() {
                 @Override
-                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
                     try {
                         indexDoc(writer, file);
                     } catch (IOException ignore) {
@@ -173,7 +178,7 @@ public class IndexFiles {
     private void indexDoc(IndexWriter writer, Path file) throws IOException {
         try (InputStream stream = Files.newInputStream(file)) {
             // make a new, empty document
-            Document doc = new Document();
+//            Document doc = new Document();
 
             // Add the path of the file as a field named "path".  Use a
             // field that is indexed (i.e. searchable), but don't readTrecFile
@@ -197,76 +202,83 @@ public class IndexFiles {
             // If that's not the case searching for special characters will fail.
 //            doc.add(new TextField("contents", new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))));
 
-            doc = readTrecFile(new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8)), doc);
-            if (doc == null) {
+            ArrayList<Document> docs = readTrecFile(new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8)));
+            if (docs.isEmpty()) {
                 return;
             }
 
             if (writer.getConfig().getOpenMode() == OpenMode.CREATE) {
                 // New index, so we just add the document (no old document can be there):
-                System.out.println("adding " + file);
-                writer.addDocument(doc);
+                for (Document doc : docs) {
+                    System.out.println("adding doc " + doc.get("docno"));
+                    writer.addDocument(doc);
+                }
             } else {
                 // Existing index (an old copy of this document may have been indexed) so
                 // we use updateDocument instead to replace the old one matching the exact
                 // path, if present:
-                System.out.println("updating " + file);
-                writer.updateDocument(new Term("path", file.toString()), doc);
+                for (Document doc : docs) {
+                    System.out.println("updating doc " + doc.get("docno"));
+                    writer.updateDocument(new Term("path", file.toString()), doc);
+                }
             }
         }
     }
 
-    private Document readTrecFile(BufferedReader reader, Document doc) {
-        StringJoiner sb = new StringJoiner(" ");
-        try {
-            String line;
-            Pattern docno_tag = Pattern.compile("<DOCNO>\\s*(\\S+)\\s*<");
-            boolean in_doc = false;
-            boolean in_text = false;
-            while (true) {
+    private ArrayList<Document> readTrecFile(BufferedReader reader) {
+        ArrayList<Document> docs = new ArrayList<>();
+        String line;
+        Pattern docno_tag = Pattern.compile("<DOCNO>\\s*(\\S+)\\s*<");
+        Document doc = null;
+        StringJoiner sb = null;
+        while (true) {
+            try {
                 line = reader.readLine();
-                if (line == null) {
-                    break;
-                }
-                if (!in_doc) {
-                    if (line.startsWith("<DOC>"))
-                        in_doc = true;
-                    else
-                        continue;
-                }
-                if (line.startsWith("</DOC>")) {
-                    break;
-                }
-
-                Matcher m = docno_tag.matcher(line);
-                if (m.find()) {
-                    String docno = m.group(1);
-                    doc.add(new StringField("docno", docno, Field.Store.YES));
-                    continue;
-                }
-
-                if (!in_text) {
-                    if (line.startsWith("<TEXT>"))
-                        in_text = true;
-                    else
-                        continue;
-                }
-                if (line.startsWith("</TEXT>")) {
-                    break;
-                }
-
-                if (!line.startsWith("<")) {
-                    sb.add(line);
-                }
+            } catch (IOException e) {
+                e.printStackTrace();
+                break;
             }
-            if (sb.length() > 0)
-                doc.add(new TextField("contents", sb.toString(), Field.Store.NO));
+            if (line == null) {
+                break;
+            }
+            if (doc == null) {
+                if (line.startsWith("<DOC>"))
+                    doc = new Document();
+                else
+                    continue;
+            }
+            if (line.startsWith("</DOC>")) {
+                doc = null;
+                continue;
+            }
 
-        } catch (IOException e) {
-            System.err.println("IOException");
-            doc = null;
+            Matcher m = docno_tag.matcher(line);
+            if (m.find()) {
+                String docno = m.group(1);
+                doc.add(new StringField("docno", docno, Field.Store.YES));
+                continue;
+            }
+
+            if (sb == null) {
+                if (line.startsWith("<TEXT>")) {
+                    sb = new StringJoiner(" ");
+                }
+                continue;
+            }
+
+            if (!line.startsWith("<")) {
+                sb.add(line);
+            } else if (line.startsWith("</TEXT>")) {
+                if (sb.length() > 0) {
+                    doc.add(new TextField("contents", sb.toString(), Field.Store.NO));
+//                System.out.println(sb.toString());
+                    count_indexed++;
+                    docs.add(doc);
+                }
+                sb = null;
+            }
         }
-        return doc;
+        return docs;
     }
 }
 
