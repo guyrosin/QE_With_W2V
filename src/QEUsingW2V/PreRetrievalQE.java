@@ -71,7 +71,7 @@ public class PreRetrievalQE {
     private boolean relevanceFeedback;
     private boolean reRank;
 
-    public PreRetrievalQE(Properties prop) throws IOException, Exception {
+    public PreRetrievalQE(Properties prop) throws Exception {
 
         this.prop = prop;
         /* property file loaded */
@@ -132,7 +132,8 @@ public class PreRetrievalQE {
         customParse = Boolean.parseBoolean(prop.getProperty("customParse"));
 
         /* setting res path */
-        setRunName_ResFileName();
+        resPath = prop.getProperty("resPath");
+//        setRunName_ResFileName();
         resFileWriter = new FileWriter(resPath);
         System.out.println("Result will be stored in: "+resPath);
         /* res path set */
@@ -507,7 +508,7 @@ public class PreRetrievalQE {
         if (q_prime == null) {
             return null;
         }
-        HashMap<String, WordProbability> hashmap_et = computeAndSortExpansionTerms_Roy(q_prime);
+        HashMap<String, WordProbability> hashmap_et = computeAndSortExpansionTerms_QAvg(q_prime);
 
 //        List<WordVec> qVecs = makeQueryVectorForms(qTerms, false);
 //        if (qVecs == null) {
@@ -543,15 +544,14 @@ public class PreRetrievalQE {
         }
 
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
-        ScoreMode scoreMode = ScoreMode.COMPLETE;
 //        Set<String> qTermsSet = Set.of(qTerms);
         for (Map.Entry<String, WordProbability> entrySet : hashmap_et.entrySet()) {
             Term thisTerm = new Term(fieldToSearch, entrySet.getKey());
             Query tq = new TermQuery(thisTerm);
-            tq.createWeight(searcher, scoreMode, entrySet.getValue().p_w_given_R / normFactor);
+            tq = new BoostQuery(tq, entrySet.getValue().p_w_given_R / normFactor);
 //            builder.add(tq, qTermsSet.contains(thisTerm.text()) ? BooleanClause.Occur.MUST : BooleanClause.Occur.SHOULD);
             builder.add(tq, BooleanClause.Occur.SHOULD);
-            System.out.println(entrySet.getKey()+"^"+entrySet.getValue().p_w_given_R / normFactor);
+//            System.out.println(entrySet.getKey()+"^"+entrySet.getValue().p_w_given_R / normFactor);
         }
 
         return builder.build();
@@ -575,13 +575,13 @@ public class PreRetrievalQE {
                 hits = topDocs.scoreDocs;
             }
 
-            System.out.println(query.qid + ": Initial query: " + query.qtitle + " --> " + luceneQuery.toString(fieldToSearch));
-
-            BooleanQuery bq = makeNewQuery_Saar(luceneQuery.toString(fieldToSearch).split(" "), hits);
+            BooleanQuery bq = makeNewQuery(luceneQuery.toString(fieldToSearch).split(" "), hits);
+//            BooleanQuery bq = makeNewQuery_Saar(luceneQuery.toString(fieldToSearch).split(" "), hits);
             if (bq == null) {
+                System.out.println("Skipping query " + query.qid + ": " + query.qtitle);
                 continue;
             }
-            System.out.println(bq.toString(fieldToSearch));
+            System.out.println(query.qid + ": " + query.qtitle + " --> " + bq.toString(fieldToSearch));
             collector = TopScoreDocCollector.create(numHits, totalHitThreshold);
             searcher.search(bq, collector);
             topDocs = collector.topDocs();

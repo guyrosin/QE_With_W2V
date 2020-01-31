@@ -8,7 +8,6 @@
 
     <properties>
         <lucene.version>8.3.0</lucene.version>
-        <!--        <lucene.version>5.3.2</lucene.version>-->
         <maven.compiler.source>1.7</maven.compiler.source>
         <maven.compiler.target>1.7</maven.compiler.target>
         <maven.compiler.release>11</maven.compiler.release>
