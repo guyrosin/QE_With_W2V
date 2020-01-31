@@ -452,12 +452,11 @@ public class PreRetrievalQE {
         }
 
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
-        ScoreMode scoreMode = ScoreMode.COMPLETE;
 //        Set<String> qTermsSet = Set.of(qTerms);
         for (Map.Entry<String, WordProbability> entrySet : hashmap_et.entrySet()) {
             Term thisTerm = new Term(fieldToSearch, entrySet.getKey());
             Query tq = new TermQuery(thisTerm);
-            tq.createWeight(searcher, scoreMode, entrySet.getValue().p_w_given_R /normFactor);
+            tq = new BoostQuery(tq, entrySet.getValue().p_w_given_R / normFactor);
 //            builder.add(tq, qTermsSet.contains(thisTerm.text()) ? BooleanClause.Occur.MUST : BooleanClause.Occur.SHOULD);
             builder.add(tq, BooleanClause.Occur.SHOULD);
 //            System.out.println(entrySet.getKey()+"^"+entrySet.getValue().p_w_given_R);

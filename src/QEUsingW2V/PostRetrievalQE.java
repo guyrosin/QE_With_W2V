@@ -369,7 +369,7 @@ public class PostRetrievalQE {
         for (Map.Entry<String, WordProbability> entrySet : hashmap_et.entrySet()) {
             thisTerm = new Term(fieldToSearch, entrySet.getKey());
             Query tq = new TermQuery(thisTerm);
-            tq.createWeight(searcher, ScoreMode.COMPLETE, entrySet.getValue().p_w_given_R/normFactor);
+            tq = new BoostQuery(tq, entrySet.getValue().p_w_given_R / normFactor);
             builder.add(tq, BooleanClause.Occur.SHOULD);
             //System.out.println(singleTerm.word+"^"+singleTerm.querySim);
         }
