@@ -140,8 +140,8 @@ public class PreRetrievalQE {
         toCompose = Boolean.parseBoolean(prop.getProperty("composeQuery"));
 
         /* setting res path */
-//        resPath = prop.getProperty("resPath");
-        setRunName_ResFileName();
+        resPath = prop.getProperty("resPath");
+//        setRunName_ResFileName();
         resFileWriter = new FileWriter(resPath);
         System.out.println("Result will be stored in: " + resPath);
         /* res path set */
@@ -219,6 +219,8 @@ public class PreRetrievalQE {
                 singleWV.norm = singleWV.getNorm();
                 singleWV.word = qTerm;
                 vec_Q.add(singleWV);
+            } else {
+                return null; // Guy: my code
             }
         }
         q_prime.addAll(vec_Q);
@@ -328,6 +330,9 @@ public class PreRetrievalQE {
     public BooleanQuery makeNewQuery(String[] qTerms) throws Exception {
 
         List<WordVec> q_prime = makeQueryVectorForms(qTerms);
+        if (q_prime == null) {
+            return null; // Guy: my code
+        }
 
 //        List<WordVec> expansionTerms = returnPreRetrievalExpansionTerms(qTerms);
 //        HashMap<String, WordProbability> hashmap_et = sortExpansionTerms(q_prime, expansionTerms);
@@ -390,11 +395,12 @@ public class PreRetrievalQE {
             collector = TopScoreDocCollector.create(numHits);
             Query luceneQuery = trecQueryParser.getAnalyzedQuery(query);
 
-//            System.out.println(query.qid + ": Initial query: " + luceneQuery.toString(fieldToSearch));
+            BooleanQuery bq = makeNewQuery(luceneQuery.toString(fieldToSearch).split(" "));
+            if (bq == null) {
+                continue; // Guy: my code
+            }
 
-            BooleanQuery bq = makeQuery(luceneQuery.toString(fieldToSearch).split(" "));
-
-            System.out.println(query.qid + ": " + luceneQuery.toString(fieldToSearch) + " --> " + bq.toString(fieldToSearch));
+            System.out.println(query.qid + ": " + query.qtitle + " --> " + bq.toString(fieldToSearch));
             searcher.search(bq, collector);
             topDocs = collector.topDocs();
             hits = topDocs.scoreDocs;

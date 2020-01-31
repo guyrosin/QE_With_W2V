@@ -18,25 +18,24 @@ package QEUsingW2V;
  */
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriterConfig.OpenMode;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.IndexWriterConfig.OpenMode;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.FileVisitResult;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.SimpleFileVisitor;
+import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Date;
@@ -96,7 +95,7 @@ public class IndexFiles {
             System.out.println("Indexing to directory '" + indexPath + "'...");
 
             Directory dir = FSDirectory.open(Paths.get(indexPath));
-            Analyzer analyzer = new StandardAnalyzer();
+            Analyzer analyzer = new EnglishAnalyzer();
             IndexWriterConfig iwc = new IndexWriterConfig(analyzer);
 
             if (create) {
@@ -210,7 +209,7 @@ public class IndexFiles {
             if (writer.getConfig().getOpenMode() == OpenMode.CREATE) {
                 // New index, so we just add the document (no old document can be there):
                 for (Document doc : docs) {
-                    System.out.println("adding doc " + doc.get("docno"));
+                    System.out.println("adding doc " + doc.get("docid"));
                     writer.addDocument(doc);
                 }
             } else {
@@ -218,7 +217,7 @@ public class IndexFiles {
                 // we use updateDocument instead to replace the old one matching the exact
                 // path, if present:
                 for (Document doc : docs) {
-                    System.out.println("updating doc " + doc.get("docno"));
+                    System.out.println("updating doc " + doc.get("docid"));
                     writer.updateDocument(new Term("path", file.toString()), doc);
                 }
             }
@@ -255,7 +254,7 @@ public class IndexFiles {
             Matcher m = docno_tag.matcher(line);
             if (m.find()) {
                 String docno = m.group(1);
-                doc.add(new StringField("docno", docno, Field.Store.YES));
+                doc.add(new StringField("docid", docno, Field.Store.YES));
                 continue;
             }
 
