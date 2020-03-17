@@ -68,7 +68,7 @@ public class PreRetrievalQE {
     WordVecs        wordVecs;
     boolean         toCompose;
     private boolean customParse;
-    private boolean relevanceFeedback;
+    boolean relevanceFeedback;
     private boolean reRank;
 
     public PreRetrievalQE(Properties prop) throws Exception {
@@ -574,8 +574,8 @@ public class PreRetrievalQE {
                 hits = topDocs.scoreDocs;
             }
 
+//            BooleanQuery bq = makeNewQuery(luceneQuery.toString(fieldToSearch).split(" "), hits);
             BooleanQuery bq = makeNewQuery(luceneQuery.toString(fieldToSearch).split(" "), hits);
-//            BooleanQuery bq = makeNewQuery_Saar(luceneQuery.toString(fieldToSearch).split(" "), hits);
             if (bq == null) {
                 System.out.println("Skipping query " + query.qid + ": " + query.qtitle);
                 continue;
