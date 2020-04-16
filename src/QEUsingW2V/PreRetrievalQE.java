@@ -195,18 +195,15 @@ public class PreRetrievalQE {
     }
 
     /**
-     * Makes Q' = vec(Q) U Qc
-     *
-     * @return
+     * Returns vectors for the given query terms.
      */
     public List<WordVec> makeQueryVectorForms(String[] qTerms) {
         return makeQueryVectorForms(qTerms, toCompose);
     }
 
     /**
-     * Makes Q' = vec(Q) U Qc
-     *
-     * @return
+     * Returns vectors for the given query terms.
+     * If toCompose is true, returns the extended query term set: Q' = vec(Q) U Qc
      */
     public List<WordVec> makeQueryVectorForms(String[] qTerms, boolean toCompose) {
         WordVec singleWV;
@@ -253,34 +250,25 @@ public class PreRetrievalQE {
 
         List<WordVec> sortedExpansionTerms = new ArrayList<>();
         for (WordVec wv : q_prime) {
-            //System.out.println(wv.word);
             sortedExpansionTerms.addAll(wordVecs.computeNNs(wv)); // Note this changes the querySim properties
         }
         // sortedExpansionTerms now contains similar terms of query terms (unsorted)
-
         Collections.sort(sortedExpansionTerms);
-        // sortedExpansionTerms now sorted
 
-        int expansionTermCount = 0;
         double norm = 0;
         HashMap<String, WordProbability> hashmap_et = new LinkedHashMap<>();  // to contain M terms with top P(w|R) among each w in R
         for (WordVec singleTerm : sortedExpansionTerms) {
-            if (null == hashmap_et.get(singleTerm.word)) {
+            if (!hashmap_et.containsKey(singleTerm.word)) { // skip duplicates
                 hashmap_et.put(singleTerm.word, new WordProbability(singleTerm.word, (float) singleTerm.querySim));
-                expansionTermCount++;
                 norm += singleTerm.querySim;
-                if (expansionTermCount >= k)
-                    break;
             }
-            //* else: The t is already entered in the hash-map 
         }
 
-        // +++ normalization
+        // normalization
         for (Map.Entry<String, WordProbability> entrySet : hashmap_et.entrySet()) {
             WordProbability value = entrySet.getValue();
             value.p_w_given_R /= norm;
         }
-        // --- normalization
 
         return hashmap_et;
     }
@@ -296,14 +284,8 @@ public class PreRetrievalQE {
         if (q_prime.size() == 0) {
             return new HashMap<>();
         }
-        // Compute query average vector
+        double[] query_avg = calcSumVector(q_prime);
         int vec_size = q_prime.get(0).vec.length;
-        double[] query_avg = new double[vec_size];
-        for (WordVec q : q_prime) {
-            for (int i = 0; i < vec_size; i++) {
-                query_avg[i] += q.vec[i];
-            }
-        }
         for (int i = 0; i < vec_size; i++) {
             query_avg[i] /= q_prime.size();
         }
@@ -311,29 +293,39 @@ public class PreRetrievalQE {
         List<WordVec> sortedExpansionTerms = wordVecs.computeNNs(query_avg, qWords);
         // sortedExpansionTerms now contains similar terms of query terms (sorted)
 
-//        int expansionTermCount = 0;
         double norm = 0;
         HashMap<String, WordProbability> hashmap_et = new LinkedHashMap<>();  // to contain M terms with top P(w|R) among each w in R
         for (WordVec singleTerm : sortedExpansionTerms) {
             if (null == hashmap_et.get(singleTerm.word)) {
                 float prob = (float) Math.exp(singleTerm.querySim);
                 hashmap_et.put(singleTerm.word, new WordProbability(singleTerm.word, prob));
-//                expansionTermCount++;
                 norm += prob;
-//                if(expansionTermCount>=k)
-//                    break;
             }
             //* else: The t is already entered in the hash-map
         }
 
-        // +++ normalization
+        // normalization
         for (Map.Entry<String, WordProbability> entrySet : hashmap_et.entrySet()) {
             WordProbability value = entrySet.getValue();
             value.p_w_given_R /= norm;
         }
-        // --- normalization
 
         return hashmap_et;
+    }
+
+    private double[] calcSumVector(List<WordVec> words) {
+        if (words.size() == 0) {
+            return null;
+        }
+        // compute query sum vector
+        int vec_size = words.get(0).vec.length;
+        double[] query_cent = new double[vec_size];
+        for (WordVec q : words) {
+            for (int i = 0; i < vec_size; i++) {
+                query_cent[i] += q.vec[i];
+            }
+        }
+        return query_cent;
     }
 
     /**
@@ -347,14 +339,7 @@ public class PreRetrievalQE {
         if (q_prime.size() == 0) {
             return new HashMap<>();
         }
-        // Compute query sum vector
-        int vec_size = q_prime.get(0).vec.length;
-        double[] query_cent = new double[vec_size];
-        for (WordVec q : q_prime) {
-            for (int i = 0; i < vec_size; i++) {
-                query_cent[i] += q.vec[i];
-            }
-        }
+        double[] query_cent = calcSumVector(q_prime);
         ArrayList<String> qWords = q_prime.stream().map(wv -> wv.word).collect(Collectors.toCollection(ArrayList::new));
 
         HashMap<String, WordVec> feedbackTerms = new HashMap<>();
@@ -390,27 +375,22 @@ public class PreRetrievalQE {
 
         // sortedExpansionTerms now contains similar terms of query terms (sorted)
 
-//        int expansionTermCount = 0;
         double norm = 0;
         HashMap<String, WordProbability> hashmap_et = new LinkedHashMap<>();  // to contain M terms with top P(w|R) among each w in R
         for (WordVec singleTerm : sortedExpansionTerms) {
             if (null == hashmap_et.get(singleTerm.word)) {
                 float prob = (float) Math.exp(singleTerm.querySim);
                 hashmap_et.put(singleTerm.word, new WordProbability(singleTerm.word, prob));
-//                expansionTermCount++;
                 norm += prob;
-//                if(expansionTermCount>=k)
-//                    break;
             }
             //* else: The t is already entered in the hash-map
         }
 
-        // +++ normalization
+        // normalization
         for (Map.Entry<String, WordProbability> entrySet : hashmap_et.entrySet()) {
             WordProbability value = entrySet.getValue();
             value.p_w_given_R /= norm;
         }
-        // --- normalization
 
         return hashmap_et;
     }
@@ -437,44 +417,12 @@ public class PreRetrievalQE {
 //            System.out.print(wv+" ");
 //        System.out.println();
 
-        float normFactor = 0;
-        //* Each w of hashmap_et: existing-weight to be QMIX*existing-weight
-        for (Map.Entry<String, WordProbability> entrySet : hashmap_et.entrySet()) {
-            WordProbability value = entrySet.getValue();
-            value.p_w_given_R = value.p_w_given_R * QMIX;
-            normFactor += value.p_w_given_R;
-        }
-
-        // Now weight(w) = QMIX*existing-weight
-        //* Each w which are also query terms: weight(w) += (1-QMIX)*P(w|Q)
-        //      P(w|Q) = tf(w,Q)/|Q|
-        for (String qTerm : qTerms) {
-            WordProbability existingTerm = hashmap_et.get(qTerm);
-            float newWeight = (1.0f - QMIX) * returnMLE_of_q_in_Q(qTerms, qTerm);
-            if (null != existingTerm) // qTerm is already in hashmap_et
-                existingTerm.p_w_given_R += newWeight;
-            else  // the qTerm is not in R
-                hashmap_et.put(qTerm, new WordProbability(qTerm, newWeight));
-            normFactor += newWeight;
-        }
-
-        BooleanQuery.Builder builder = new BooleanQuery.Builder();
-//        Set<String> qTermsSet = Set.of(qTerms);
-        for (Map.Entry<String, WordProbability> entrySet : hashmap_et.entrySet()) {
-            Term thisTerm = new Term(fieldToSearch, entrySet.getKey());
-            Query tq = new TermQuery(thisTerm);
-            tq = new BoostQuery(tq, entrySet.getValue().p_w_given_R / normFactor);
-//            builder.add(tq, qTermsSet.contains(thisTerm.text()) ? BooleanClause.Occur.MUST : BooleanClause.Occur.SHOULD);
-            builder.add(tq, BooleanClause.Occur.SHOULD);
-//            System.out.println(entrySet.getKey()+"^"+entrySet.getValue().p_w_given_R);
-        }
-
-        return builder.build();
+        return reWeightAndBuildQuery(qTerms, hashmap_et);
     }
 
 
     /**
-     * Returns MLE of a query term q in Q;<p>
+     * Returns MLE of a query term w in Q:
      * P(w|Q) = tf(w,Q)/|Q|
      *
      * @param qTerms all query terms
@@ -486,34 +434,7 @@ public class PreRetrievalQE {
         return ((float) count / (float) qTerms.length);
     }
 
-    /**
-     * Returns the new formed, expanded query
-     *
-     * @param qTerms The initial query terms
-     * @param hits
-     * @return BooleanQuery - The expanded query in boolean format
-     */
-    public BooleanQuery makeNewQuery_Roy(String[] qTerms, ScoreDoc[] hits) {
-
-        // Roy 2016's expansion
-        List<WordVec> q_prime = makeQueryVectorForms(qTerms);
-        if (q_prime == null) {
-            return null;
-        }
-        HashMap<String, WordProbability> hashmap_et = computeAndSortExpansionTerms_QAvg(q_prime);
-
-//        List<WordVec> qVecs = makeQueryVectorForms(qTerms, false);
-//        if (qVecs == null) {
-//            return null;
-//        }
-//        HashMap<String, WordProbability> hashmap_et = computeAndSortExpansionTerms_QAvg(qVecs);
-
-        // Now hashmap_et contains all the expansion terms (normalized weights). No query specific information.
-
-//        for (String wv : hashmap_et.keySet())
-//            System.out.print(wv+" ");
-//        System.out.println();
-
+    private BooleanQuery reWeightAndBuildQuery(String[] qTerms, HashMap<String, WordProbability> hashmap_et) {
         float normFactor = 0;
         //* Each w of hashmap_et: existing-weight to be QMIX*existing-weight
         for (Map.Entry<String, WordProbability> entrySet : hashmap_et.entrySet()) {
@@ -547,6 +468,37 @@ public class PreRetrievalQE {
         }
 
         return builder.build();
+    }
+
+    /**
+     * Returns the new formed, expanded query
+     *
+     * @param qTerms The initial query terms
+     * @param hits
+     * @return BooleanQuery - The expanded query in boolean format
+     */
+    public BooleanQuery makeNewQuery_Roy(String[] qTerms, ScoreDoc[] hits) {
+
+        // Roy 2016's expansion
+        List<WordVec> q_prime = makeQueryVectorForms(qTerms);
+        if (q_prime == null) {
+            return null;
+        }
+        HashMap<String, WordProbability> hashmap_et = computeAndSortExpansionTerms_Roy(q_prime);
+
+//        List<WordVec> qVecs = makeQueryVectorForms(qTerms, false);
+//        if (qVecs == null) {
+//            return null;
+//        }
+//        HashMap<String, WordProbability> hashmap_et = computeAndSortExpansionTerms_QAvg(qVecs);
+
+        // Now hashmap_et contains all the expansion terms (normalized weights). No query specific information.
+
+//        for (String wv : hashmap_et.keySet())
+//            System.out.print(wv+" ");
+//        System.out.println();
+
+        return reWeightAndBuildQuery(qTerms, hashmap_et);
     }
 
     public void retrieveAll() throws Exception {
