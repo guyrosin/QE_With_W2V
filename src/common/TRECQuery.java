@@ -4,20 +4,14 @@
  */
 package common;
 
-import static common.CommonVariables.FIELD_BOW;
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.search.Query;
 
 import java.io.StringReader;
 import java.util.AbstractMap;
 import java.util.ArrayList;
-
-import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
 
 /**
  * @author dwaipayan
@@ -28,16 +22,11 @@ public class TRECQuery {
     public String qdesc;
     public String qnarr;
     public Query luceneQuery;
-    public String fieldToSearch;
     public ArrayList<AbstractMap.SimpleEntry<String, Float>> extensionTerms;
 
     @Override
     public String toString() {
         return qid + "\t" + qtitle;
-    }
-
-    public Query getLuceneQuery() {
-        return luceneQuery;
     }
 
     /**
@@ -48,8 +37,7 @@ public class TRECQuery {
      * @return (String) The content of the field
      * @throws Exception
      */
-    public String queryFieldAnalyze(Analyzer analyzer, String queryFieldText) throws Exception {
-        fieldToSearch = FIELD_BOW;
+    public String queryFieldAnalyze(Analyzer analyzer, String queryFieldText, String fieldToSearch) throws Exception {
         StringBuilder localBuff = new StringBuilder();
 //        queryFieldText = queryFieldText.replace(".", "");
         TokenStream stream = analyzer.tokenStream(fieldToSearch, new StringReader(queryFieldText));
@@ -63,22 +51,6 @@ public class TRECQuery {
         stream.end();
         stream.close();
         return localBuff.toString();
-    }
-
-    public Query getBOWQuery(Analyzer analyzer, TRECQuery query) throws Exception {
-        fieldToSearch = FIELD_BOW;
-        Term thisTerm;
-
-        String[] terms = queryFieldAnalyze(analyzer, query.qtitle).split("\\s+");
-        BooleanQuery.Builder builder = new BooleanQuery.Builder();
-        for (String term : terms) {
-            thisTerm = new Term(fieldToSearch, term);
-            Query tq = new TermQuery(thisTerm);
-            builder.add(tq, BooleanClause.Occur.SHOULD);
-        }
-        luceneQuery = builder.build();
-
-        return luceneQuery;
     }
 
     public ArrayList<AbstractMap.SimpleEntry<String, Float>> getExtensionTerms() {

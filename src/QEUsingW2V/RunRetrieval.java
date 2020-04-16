@@ -60,7 +60,7 @@ public class RunRetrieval {
 //            }
 
 //            BooleanQuery bq = makeNewQuery(luceneQuery.toString(fieldToSearch).split(" "), hits);
-            BooleanQuery bq = retriever.makeQuery(luceneQuery.toString(retriever.fieldToSearch).split(" "));
+            BooleanQuery bq = retriever.trecQueryParser.makeQuery(luceneQuery.toString(retriever.fieldToSearch).split(" "));
             if (bq == null) {
                 System.out.println("Skipping query " + query.qid + ": " + query.qtitle);
                 continue;

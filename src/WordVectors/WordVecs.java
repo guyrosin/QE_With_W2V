@@ -4,13 +4,16 @@ package WordVectors;
 import common.EnglishAnalyzerWithSmartStopword;
 import common.TRECQuery;
 import common.TRECQueryParser;
+
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.PrintWriter;
+
 import static java.lang.Character.isLetter;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -24,16 +27,14 @@ import java.util.stream.IntStream;
 import org.apache.lucene.analysis.Analyzer;
 
 /**
- *
  * @author dwaipayan
- *
+ * <p>
  * Calculates the similar terms of each of the word of the vocabulary dump
- *
  */
 public class WordVecs {
 
-    static Properties  prop;       // the properties file
-    public int         k;          // k in kNN; Number of NNs to precompute and store
+    static Properties prop;       // the properties file
+    public int k;          // k in kNN; Number of NNs to precompute and store
     public HashMap<String, WordVec> wordvecmap;    // each word and its vector
     public HashMap<String, List<WordVec>> nearestWordVecsMap; // Store the pre-computed NNs after read from file
     static WordVecs singleTon;
@@ -45,25 +46,24 @@ public class WordVecs {
         prop = new Properties();
         prop.load(new FileReader(propPath));
 
-        if(prop.getProperty("vectorPath")!=null) {
+        if (prop.getProperty("vectorPath") != null) {
             String wordvecFile = prop.getProperty("vectorPath");
 
             k = Integer.parseInt(prop.getProperty("k", "15"));
             wordvecmap = new HashMap<>();
             System.out.println("Loading word vectors");
             try (FileReader fr = new FileReader(wordvecFile);
-                BufferedReader br = new BufferedReader(fr)) {
+                 BufferedReader br = new BufferedReader(fr)) {
                 String line;
 
                 while ((line = br.readLine()) != null) {
                     WordVec wv = new WordVec(line);
-                    if(isLegalToken(wv.word))
+                    if (isLegalToken(wv.word))
                         wordvecmap.put(wv.word, wv);
                 }
             }
             System.out.println("Word vectors loaded");
-        }
-        else {
+        } else {
             System.err.println("vectorPath not set in properties");
             System.exit(1);
         }
@@ -75,24 +75,23 @@ public class WordVecs {
 
         WordVecs.prop = prop;
 
-        if(prop.containsKey("vectorPath")) {
+        if (prop.containsKey("vectorPath")) {
             String wordvecFile = prop.getProperty("vectorPath");
 
             k = Integer.parseInt(prop.getProperty("k", "15"));
             wordvecmap = new HashMap<>();
             System.out.println("Started loading all vectors into hashmap...");
             try (FileReader fr = new FileReader(wordvecFile);
-                BufferedReader br = new BufferedReader(fr)) {
+                 BufferedReader br = new BufferedReader(fr)) {
                 String line;
 
                 while ((line = br.readLine()) != null) {
                     WordVec wv = new WordVec(line);
-                    if(isLegalToken(wv.word))
+                    if (isLegalToken(wv.word))
                         wordvecmap.put(wv.word, wv);
                 }
             }
-        }
-        else {
+        } else {
             System.err.println("vectorPath not set in properties");
             System.exit(1);
         }
@@ -119,7 +118,7 @@ public class WordVecs {
     }
 
     static public WordVecs createInstance(Properties prop) throws Exception {
-        if(singleTon == null) {
+        if (singleTon == null) {
             singleTon = new WordVecs(prop);
             singleTon.loadPrecomputedNNs();
             System.out.println("Precomputed NNs loaded");
@@ -132,22 +131,21 @@ public class WordVecs {
      */
     public void computeAndStoreNNs() throws FileNotFoundException {
         String nnDumpPath = prop.getProperty("nnDumpPath");
-        if(nnDumpPath!=null) {
+        if (nnDumpPath != null) {
             File f = new File(nnDumpPath);
-        }
-        else {
+        } else {
             System.err.println("nnDumpPath missing in properties file");
             return;
         }
 
-        System.out.println("Dumping the NNs in: "+ nnDumpPath);
+        System.out.println("Dumping the NNs in: " + nnDumpPath);
         PrintWriter pout = new PrintWriter(nnDumpPath);
 
         System.out.println("Precomputing NNs for each word");
 
         for (Map.Entry<String, WordVec> entry : wordvecmap.entrySet()) {
             WordVec wv = entry.getValue();
-            System.out.println("Precomputing "+k+" NNs for " + wv.word);
+            System.out.println("Precomputing " + k + " NNs for " + wv.word);
             List<WordVec> nns = computeNNs(wv.word);
             if (nns != null) {
                 pout.print(wv.word + "\t");
@@ -169,24 +167,24 @@ public class WordVecs {
         EnglishAnalyzerWithSmartStopword engAnalyzer = new EnglishAnalyzerWithSmartStopword("/home/dwaipayan/smart-stopwords");
         Analyzer analyzer = engAnalyzer.setAndGetEnglishAnalyzerWithSmartStopword();
         String queryPath = prop.getProperty("queryPath");
+        String fieldToSearch = prop.getProperty("fieldToSearch");
         TRECQueryParser trecQueryparser;
         List<TRECQuery> queries;
         /* constructing the query */
-        trecQueryparser = new TRECQueryParser(queryPath, analyzer);
+        trecQueryparser = new TRECQueryParser(queryPath, analyzer, fieldToSearch);
         trecQueryparser.queryFileParse();
         queries = trecQueryparser.queries;
         /* constructed the query */
 
         String nnDumpPath = prop.getProperty("nnDumpPath");
-        if(nnDumpPath!=null) {
+        if (nnDumpPath != null) {
             File f = new File(nnDumpPath);
-        }
-        else {
+        } else {
             System.err.println("nnDumpPath missing in properties file");
             return;
         }
 
-        System.out.println("Dumping the NNs in: "+ nnDumpPath);
+        System.out.println("Dumping the NNs in: " + nnDumpPath);
         PrintWriter pout = new PrintWriter(nnDumpPath);
 
         System.out.println("Precomputing NNs for each query word");
@@ -198,8 +196,8 @@ public class WordVecs {
                 str = str.replace("(", "").replace(")", "");
                 System.out.println(str);
                 WordVec wv = wordvecmap.get(str);
-                if(null != wv) {
-                    System.out.println("Precomputing "+k+" NNs for " + wv.word);
+                if (null != wv) {
+                    System.out.println("Precomputing " + k + " NNs for " + wv.word);
                     List<WordVec> nns = computeNNs(wv.word);
                     if (nns != null) {
                         pout.print(wv.word + "\t");
@@ -222,19 +220,21 @@ public class WordVecs {
 
     /**
      * Compute the similar words of 'queryWord'
+     *
      * @param queryWord
      * @return
      */
     public List<WordVec> computeNNs(String queryWord) {
         WordVec queryVec = wordvecmap.get(queryWord);   // vector of the corresponding word is find out
         if (queryVec == null)
-        // if the word has no vector embedded with it.
+            // if the word has no vector embedded with it.
             return null;
         return computeNNs(queryVec);
     }
 
     /**
      * Compute list of similar terms of the WordVec w and return
+     *
      * @param w
      * @return
      */
@@ -296,6 +296,7 @@ public class WordVecs {
 
     /**
      * Compute list of similar terms of the WordVec w from feedbackTerms and return
+     *
      * @param w
      * @return
      */
@@ -333,6 +334,7 @@ public class WordVecs {
 
     /**
      * load the precomputed NNs into hash table
+     *
      * @throws FileNotFoundException
      * @throws IOException
      */
@@ -343,11 +345,11 @@ public class WordVecs {
             System.out.println("NNDumpPath Null while reading");
             return;
         }
-        System.out.println("Reading from the NN dump at: "+ nnDumpPath);
+        System.out.println("Reading from the NN dump at: " + nnDumpPath);
         File nnDumpFile = new File(nnDumpPath);
 
         try (FileReader fr = new FileReader(nnDumpFile);
-            BufferedReader br = new BufferedReader(fr)) {
+             BufferedReader br = new BufferedReader(fr)) {
             String line;
 
             while ((line = br.readLine()) != null) {
@@ -360,16 +362,15 @@ public class WordVecs {
                 LinkedList<WordVec> nns = new LinkedList<>();
                 int len = tokens.size();
                 //System.out.print(tokens.get(0)+" > ");
-                for (int i=1; i < len-1; i+=2) {
-                    nns.add(new WordVec(tokens.get(i), Float.parseFloat(tokens.get(i+1))));
+                for (int i = 1; i < len - 1; i += 2) {
+                    nns.add(new WordVec(tokens.get(i), Float.parseFloat(tokens.get(i + 1))));
                     //System.out.print(tokens.get(i) + ":" + tokens.get(i+1));
                 }
                 //System.out.println();
                 nearestWordVecsMap.put(tokens.get(0), nns);
             }
             System.out.println("NN dump has been reloaded");
-        }
-        catch (Exception ex) {
+        } catch (Exception ex) {
             ex.printStackTrace();
         }
     }
@@ -377,24 +378,24 @@ public class WordVecs {
     public static void main(String[] args) {
 
         String usage = "Usage: java WordVecs <properties-path>\n"
-            + "Properties file must contain:\n"
-            + "1. vectorPath = path of the word2vec trained .vec file\n"
-            + "2. nnDumpPath = path of the file, in which the precomputed NNs will be stored\n"
-            + "3. k = number of NNs to precompute and store\n"
-            + "4. [queryPath] = path of the query file";
+                + "Properties file must contain:\n"
+                + "1. vectorPath = path of the word2vec trained .vec file\n"
+                + "2. nnDumpPath = path of the file, in which the precomputed NNs will be stored\n"
+                + "3. k = number of NNs to precompute and store\n"
+                + "4. [queryPath] = path of the query file";
 
         /*
         args = new String[1];
         args[0] = "/home/dwaipayan/preComputedNNs.properties";
         //*/
 
-        if(args.length == 0) {
+        if (args.length == 0) {
             System.out.println(usage);
             System.exit(1);
-	}
+        }
         try {
-	    WordVecs wv = new WordVecs(args[0]);
-            if(prop.containsKey("queryPath"))
+            WordVecs wv = new WordVecs(args[0]);
+            if (prop.containsKey("queryPath"))
                 wv.computeAndStoreQueryNNs();
             else
                 wv.computeAndStoreNNs();
@@ -405,8 +406,7 @@ public class WordVecs {
             for (WordVec word : nwords)
                 System.out.println(word.word + "\t" + word.querySim);
             */
-        }
-        catch (Exception ex) {
+        } catch (Exception ex) {
             ex.printStackTrace();
         }
     }
