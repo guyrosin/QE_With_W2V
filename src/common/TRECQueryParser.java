@@ -1,10 +1,11 @@
 
 package common;
 
-/**
+/*
  *
  * @author dwaipayan
  */
+
 import static common.CommonVariables.FIELD_BOW;
 
 import org.jsoup.Jsoup;
@@ -15,6 +16,7 @@ import org.jsoup.select.NodeVisitor;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.*;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.index.Term;
@@ -24,48 +26,42 @@ import org.apache.lucene.search.TermQuery;
 
 public class TRECQueryParser {
 
-    StringBuffer        buff;      // Accumulation buffer for storing the current topic
-    String              queryFilePath;
-    TRECQuery           query;
-    Analyzer            analyzer;
+    StringBuffer buff;      // Accumulation buffer for storing the current topic
+    String queryFilePath;
+    TRECQuery query;
+    Analyzer analyzer;
     StandardQueryParser queryParser;
-    String              fieldToSearch;  // field name of the index to be searched
+    String fieldToSearch;  // field name of the index to be searched
 
-    public List<TRECQuery>  queries;
+    public List<TRECQuery> queries;
     final static String[] tags = {"num", "title", "desc", "narr"};
 
     /**
      * Constructor:
-     *      fieldToSearch is initialized with 'content';
-     *      analyzer is set to EnglishAnalyzer();
+     * fieldToSearch is initialized with 'content';
+     * analyzer is set to EnglishAnalyzer();
+     *
      * @param queryFilePath Absolute path of the query file
      */
-    public TRECQueryParser(String queryFilePath)  {
-        this.queryFilePath = queryFilePath;
-        this.fieldToSearch = FIELD_BOW;
-        buff = new StringBuffer();
-        queries = new LinkedList<>();
-        analyzer = new EnglishAnalyzer();
+    public TRECQueryParser(String queryFilePath) {
+        this(queryFilePath, new EnglishAnalyzer(), FIELD_BOW);
     }
 
     /**
      * Constructor: fieldToSearch is initialized with 'content'
+     *
      * @param queryFilePath Absolute path of the query file
-     * @param analyzer Analyzer to be used for analyzing the query fields
+     * @param analyzer      Analyzer to be used for analyzing the query fields
      */
     public TRECQueryParser(String queryFilePath, Analyzer analyzer) {
-        this.queryFilePath = queryFilePath;
-        this.analyzer = analyzer;
-        this.fieldToSearch = FIELD_BOW;
-        buff = new StringBuffer();
-        queries = new LinkedList<>();
-        queryParser = new StandardQueryParser(this.analyzer);
+        this(queryFilePath, analyzer, FIELD_BOW);
     }
 
     /**
      * Constructor:
+     *
      * @param queryFilePath Absolute path of the query file
-     * @param analyzer Analyzer to be used for analyzing the query fields
+     * @param analyzer      Analyzer to be used for analyzing the query fields
      * @param fieldToSearch Field of the index to be searched
      */
     public TRECQueryParser(String queryFilePath, Analyzer analyzer, String fieldToSearch) {
@@ -81,6 +77,7 @@ public class TRECQueryParser {
      * Parses the query file from xml format using SAXParser;
      * 'queries' list gets initialized with the queries
      * (with title, desc, narr and qid in different place holders)
+     *
      * @throws Exception
      */
     public void queryFileParse() throws Exception {
@@ -107,6 +104,7 @@ public class TRECQueryParser {
                     query = new TRECQuery();
                 }
             }
+
             public void tail(Node node, int depth) {
             }
         });
@@ -117,13 +115,13 @@ public class TRECQueryParser {
 
         trecQuery.qtitle = trecQuery.qtitle.replaceAll("-", " ");
         Query luceneQuery = queryParser.parse(trecQuery.qtitle.replaceAll("/", " ")
-                .replaceAll("\\?", " ").replaceAll("\"", " ").replaceAll("\\&", " "), fieldToSearch);
+                .replaceAll("\\?", " ").replaceAll("\"", " ").replaceAll("&", " "), fieldToSearch);
         trecQuery.luceneQuery = luceneQuery;
 
         return luceneQuery;
     }
 
-    public Query getAnalyzedQuery(String queryString) throws Exception {
+    public Query getAnalyzedQuery(String queryString) {
 
 //        queryString = queryString.replaceAll("-", " ");
 //        Query luceneQuery = queryParser.parse(queryString.replaceAll("/", " ")
@@ -151,16 +149,15 @@ public class TRECQueryParser {
             queryParser.queryFileParse();
 
             for (TRECQuery query : queryParser.queries) {
-                System.out.println("ID: "+query.qid);
-                System.out.println("Title: "+query.qtitle);
+                System.out.println("ID: " + query.qid);
+                System.out.println("Title: " + query.qtitle);
                 Query luceneQuery;
                 luceneQuery = queryParser.getAnalyzedQuery(query);
-                System.out.println("Parsed: "+luceneQuery.toString(queryParser.fieldToSearch));
+                System.out.println("Parsed: " + luceneQuery.toString(queryParser.fieldToSearch));
                 System.out.println(query.queryFieldAnalyze(analyzer, query.qtitle));    // this statement analyze the query text as simple text
             }
 
-        }
-        catch (Exception ex) {
+        } catch (Exception ex) {
             ex.printStackTrace();
         }
     }

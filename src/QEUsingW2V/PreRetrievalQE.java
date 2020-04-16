@@ -1,44 +1,19 @@
-/**
- * COMPLETE.
- */
 package QEUsingW2V;
 
-/**
+/*
  * @author dwaipayan
  */
 
 import WordVectors.WordVec;
 import WordVectors.WordVecs;
-import common.CollectionStatistics;
 import common.TRECQuery;
 import common.TRECQueryParser;
-
-import java.io.File;
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.TopScoreDocCollector;
+import org.apache.lucene.search.*;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.DefaultSimilarity;
 import org.apache.lucene.search.similarities.LMDirichletSimilarity;
@@ -46,8 +21,12 @@ import org.apache.lucene.search.similarities.LMJelinekMercerSimilarity;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 
+import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.util.*;
+
 /**
- *
  * @author dwaipayan
  */
 
@@ -55,7 +34,6 @@ import org.apache.lucene.store.FSDirectory;
 public class PreRetrievalQE {
 
     Properties prop;
-    CollectionStatistics collStat;
     String indexPath;
     String queryPath;      // path of the query file
     File queryFile;      // the query file
@@ -83,7 +61,7 @@ public class PreRetrievalQE {
     WordVecs wordVecs;
     boolean toCompose;
 
-    public PreRetrievalQE(Properties prop) throws IOException, Exception {
+    public PreRetrievalQE(Properties prop) throws Exception {
 
         this.prop = prop;
         /* property file loaded */
@@ -119,7 +97,7 @@ public class PreRetrievalQE {
         reader = DirectoryReader.open(FSDirectory.open(indexFile.toPath()));
         searcher = new IndexSearcher(reader);
         setSimilarityFunction(simFuncChoice, param1, param2);
-        /* reader and searher set */
+        /* reader and searcher set */
 
         /* setting query path */
         queryPath = prop.getProperty("queryPath");
@@ -186,8 +164,9 @@ public class PreRetrievalQE {
     }
 
     /**
-     * Parses the query from the file and makes a List<TRECQuery> 
-     *  containing all the queries
+     * Parses the query from the file and makes a List<TRECQuery>
+     * containing all the queries
+     *
      * @return
      * @throws Exception
      */
@@ -201,16 +180,15 @@ public class PreRetrievalQE {
 
     /**
      * Makes Q' = vec(Q) U Qc
-     * @throws Exception
+     *
      * @return
      */
-    public List<WordVec> makeQueryVectorForms(String qTerms[]) throws Exception {
+    public List<WordVec> makeQueryVectorForms(String qTerms[]) {
 
-        WordVec singleWV = null;
+        WordVec singleWV;
 
         List<WordVec> vec_Q = new ArrayList<>();
         List<WordVec> q_c = new ArrayList<>();
-        List<WordVec> q_prime = new ArrayList<>();
 
         // vec(Q)
         for (String qTerm : qTerms) {
@@ -223,14 +201,14 @@ public class PreRetrievalQE {
                 return null; // Guy: my code
             }
         }
-        q_prime.addAll(vec_Q);
+        List<WordVec> q_prime = new ArrayList<>(vec_Q);
         // --- original query-term vectors are added
 
         if (toCompose) {
             // Qc
             System.out.println("Composing ");
             for (int i = 0; i < vec_Q.size() - 1; i++) {
-                singleWV = vec_Q.get(i).add(vec_Q.get(i), vec_Q.get(i + 1));
+                singleWV = WordVec.add(vec_Q.get(i), vec_Q.get(i + 1));
                 singleWV.norm = singleWV.getNorm();
                 singleWV.word = vec_Q.get(i).word + "+" + vec_Q.get(i + 1).word;
                 q_c.add(singleWV);
@@ -244,6 +222,7 @@ public class PreRetrievalQE {
 
     /**
      * Returns a hashmap of similar terms of q_prime, computed over the entire vocabulary
+     *
      * @param q_prime List of the vectors of the query terms as well as the pairwise composed forms
      * @return Hashmap of terms from across the collection which are similar to q_prime
      */
@@ -256,12 +235,7 @@ public class PreRetrievalQE {
         }
         // sortedExpansionTerms now contains similar terms of query terms (unsorted)
 
-        Collections.sort(sortedExpansionTerms, new Comparator<WordVec>() {
-            @Override
-            public int compare(WordVec t1, WordVec t2) {
-                return t1.querySim < t2.querySim ? 1 : t1.querySim == t2.querySim ? 0 : -1;
-            }
-        });
+        sortedExpansionTerms.sort((t1, t2) -> Double.compare(t2.querySim, t1.querySim));
         // sortedExpansionTerms now sorted
 
         int expansionTermCount = 0;
@@ -280,7 +254,6 @@ public class PreRetrievalQE {
 
         // +++ normalization
         for (Map.Entry<String, WordProbability> entrySet : hashmap_et.entrySet()) {
-            String key = entrySet.getKey();
             WordProbability value = entrySet.getValue();
             value.p_w_given_R /= norm;
         }
@@ -293,8 +266,9 @@ public class PreRetrievalQE {
     /**
      * Returns MLE of a query term q in Q;<p>
      * P(w|Q) = tf(w,Q)/|Q|
+     *
      * @param qTerms all query terms
-     * @param qTerm query term under consideration
+     * @param qTerm  query term under consideration
      * @return
      */
     public float returnMLE_of_q_in_Q(String[] qTerms, String qTerm) {
@@ -304,10 +278,11 @@ public class PreRetrievalQE {
             if (qTerm.equals(queryTerm))
                 count++;
         return ((float) count / (float) qTerms.length);
-    } // ends returnMLE_of_w_in_Q()
+    }
 
     /**
      * Returns an unexpanded query from the given terms
+     *
      * @param qTerms
      * @return BooleanQuery - The query in boolean format
      */
@@ -323,11 +298,11 @@ public class PreRetrievalQE {
 
     /**
      * Returns the new formed, expanded query
+     *
      * @param qTerms The initial query terms
      * @return BooleanQuery - The expanded query in boolean format
-     * @throws Exception
      */
-    public BooleanQuery makeNewQuery(String[] qTerms) throws Exception {
+    public BooleanQuery makeNewQuery(String[] qTerms) {
 
         List<WordVec> q_prime = makeQueryVectorForms(qTerms);
         if (q_prime == null) {
@@ -354,7 +329,6 @@ public class PreRetrievalQE {
         normFactor = 0;
         //* Each w of hashmap_et: existing-weight to be QMIX*existing-weight 
         for (Map.Entry<String, WordProbability> entrySet : hashmap_et.entrySet()) {
-            String key = entrySet.getKey();
             WordProbability value = entrySet.getValue();
             value.p_w_given_R = value.p_w_given_R * QMIX;
             normFactor += value.p_w_given_R;
